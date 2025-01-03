@@ -788,7 +788,7 @@ def ensure_vector_dimension(engine, desired_dim: int):
 ### `my_app/db/chunking.py`
 
 ```python
-# src/my_app/db/chunking.py
+# src/my_app/db/text_chunk.py
 
 from typing import List
 

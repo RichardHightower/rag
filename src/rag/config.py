@@ -22,7 +22,8 @@ DB_NAME = os.getenv("POSTGRES_DB", "vectordb")
 def get_db_url(dbname: str = None) -> str:
     """Get database URL with optional database name override."""
     db = dbname or DB_NAME
-    return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{db}"
+    db_url = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{db}"
+    return db_url
 
 DB_URL = get_db_url()
 

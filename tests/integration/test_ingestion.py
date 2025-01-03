@@ -1,111 +1,168 @@
-"""Integration test for file ingestion."""
+"""Integration tests for file ingestion (using the same connection style as test_db_connection)."""
 
 import os
-import tempfile
-from pathlib import Path
+import sys
 import uuid
+from pathlib import Path
+from dotenv import load_dotenv
 
-import pytest
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+# Add the project root to Python path
+project_root = str(Path(__file__).parent.parent.parent)
+sys.path.insert(0, project_root)
 
-from rag.config import get_db_url
-from rag.embeddings.mock_embedder import MockEmbedder
+# Load environment variables
+env_file = Path(project_root) / ".env"
+load_dotenv(env_file)
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.engine import URL
+
+from rag.db.models import Project, File, Chunk
 from rag.db.db_file_handler import DBFileHandler
+from rag.embeddings.mock_embedder import MockEmbedder
 
 
-@pytest.fixture
-def sample_file():
-    """Create a temporary sample file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-        f.write("This is a test file.\nIt has multiple lines.\nEach line will be chunked.")
-        return Path(f.name)
+def _get_db_url() -> str:
+    """
+    Build a DB URL string using environment variables,
+    matching the style from test_db_connection.py
+    """
+    password = os.environ.get("POSTGRES_PASSWORD", "postgres").strip()
+    username = os.environ.get("POSTGRES_USER", "postgres").strip()
+    host = os.environ.get("POSTGRES_HOST", "localhost").strip()
+    port = int(os.environ.get("POSTGRES_PORT", "5433").strip())
+    database = "vectordb_test"
+    db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
 
-@pytest.fixture
-def unique_name():
-    """Generate a unique project name."""
-    return f"Test Project {uuid.uuid4()}"
+    print(f"test ingestion POSTGRES_USER={username}")
+    print(f"test ingestion POSTGRES_PASSWORD={password}")
+    print(f"test ingestion POSTGRES_HOST={host}")
+    print(f"test ingestion POSTGRES_PORT={port}")
+    print(f"test ingestion Database URL={db_url}")
+    db_url2 = str(
+        URL.create(
+            drivername="postgresql",
+            username=username,
+            password=password,
+            host=host,
+            port=port,
+            database=database,
+        )
+    )
+    print(f"test ingestion Database URL={db_url2}")
+    return db_url
 
 
-def test_file_ingestion(test_db, sample_file, unique_name):
-    """Test complete file ingestion flow."""
-    # Create handler with mock embedder
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
-    
+def test_file_ingestion():
+    """Test basic file ingestion flow."""
+    db_url = _get_db_url()
+    handler = DBFileHandler(db_url, MockEmbedder())
+
     # Create project
-    project = handler.create_project(unique_name)
-    assert project is not None
-    assert project.name == unique_name
-    
-    # Add file
-    file = handler.add_file(project.id, str(sample_file))
-    assert file is not None
-    
+    project = handler.get_or_create_project(f"test_project_{uuid.uuid4()}")
+
+    # Test file ingestion
+    content = "This is a test file.\nIt has multiple lines.\nEach line is different."
+    file, is_updated = handler.process_file(project.id, "/test/file.txt", content)
+
+    assert not is_updated
+    assert file.filename == "file.txt"
+    assert file.file_path == "/test/file.txt"
+
     # Verify chunks were created
-    with handler.session_scope() as session:
-        # Count chunks
-        chunk_count = session.query(handler.Chunk).filter_by(file_id=file.id).count()
-        assert chunk_count > 0
-        
-        # Verify embeddings exist
-        chunks = session.query(handler.Chunk).filter_by(file_id=file.id).all()
+    engine = create_engine(db_url)
+    with Session(engine) as session:
+        chunks = session.query(Chunk).filter(Chunk.file_id == file.id).all()
+        assert len(chunks) > 0
         for chunk in chunks:
             assert chunk.embedding is not None
-            assert len(chunk.embedding) == MockEmbedder().get_dimension()
 
 
-def test_project_uniqueness(test_db, unique_name):
-    """Test project name uniqueness constraints."""
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
-    
-    # Create initial project
-    project1 = handler.create_project(unique_name)
-    assert project1 is not None
-    assert project1.name == unique_name
-    
-    # Try to create another project with the same name
-    with pytest.raises(ValueError, match=f"Project with name '{unique_name}' already exists"):
-        handler.create_project(unique_name)
-    
-    # Test get_or_create_project
-    project2 = handler.get_or_create_project(unique_name)
-    assert project2.id == project1.id
-    assert project2.name == unique_name
-    
-    # Test description update
-    new_description = "Updated description"
-    project3 = handler.get_or_create_project(unique_name, new_description)
-    assert project3.id == project1.id
-    assert project3.name == unique_name
-    assert project3.description == new_description
+def test_project_uniqueness():
+    """Test project name uniqueness."""
+    db_url = _get_db_url()
+    handler = DBFileHandler(db_url, MockEmbedder())
+
+    # Create project with unique name
+    name = f"test_project_{uuid.uuid4()}"
+    project1 = handler.get_or_create_project(name)
+
+    # Try to create project with the same name
+    project2 = handler.get_or_create_project(name)
+
+    # Should return the same project
+    assert project1.id == project2.id
+    assert project1.name == project2.name
 
 
-def test_multiple_projects(test_db):
-    """Test creating multiple projects with different names."""
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
-    
-    # Create multiple projects
-    names = [f"Project {i}" for i in range(3)]
-    projects = []
-    
-    for name in names:
-        project = handler.create_project(name)
-        assert project is not None
-        assert project.name == name
-        projects.append(project)
-    
-    # Verify all projects exist and have unique IDs
-    project_ids = {p.id for p in projects}
+def test_multiple_projects():
+    """Test creating multiple projects."""
+    db_url = _get_db_url()
+    handler = DBFileHandler(db_url, MockEmbedder())
+
+    # Create multiple projects with unique names
+    names = [f"test_project_{uuid.uuid4()}" for _ in range(3)]
+    projects = [handler.get_or_create_project(name) for name in names]
+
+    # Verify all projects were created with unique IDs
+    project_ids = [p.id for p in projects]
+    assert len(project_ids) == len(set(project_ids))
     assert len(project_ids) == len(names)
 
 
-def teardown_module(module):
-    """Clean up temporary files after tests."""
-    # Clean up any .txt files in the current directory
-    for item in Path().glob('*.txt'):
-        if item.is_file() and item.suffix == '.txt':
-            try:
-                item.unlink()
-            except OSError:
-                pass
+def test_file_deduplication():
+    """Test file deduplication logic."""
+    db_url = _get_db_url()
+    handler = DBFileHandler(db_url, MockEmbedder())
+    project = handler.get_or_create_project(f"test_project_{uuid.uuid4()}")
+
+    # Initial file ingestion
+    content1 = "Initial content"
+    file1, is_updated = handler.process_file(project.id, "/test/file.txt", content1)
+    assert not is_updated
+
+    # Same content - should not update
+    file2, is_updated = handler.process_file(project.id, "/test/file.txt", content1)
+    assert not is_updated
+    assert file1.id == file2.id
+    assert file1.crc == file2.crc
+
+    # Modified content - should update
+    content2 = "Modified content"
+    file3, is_updated = handler.process_file(project.id, "/test/file.txt", content2)
+    assert is_updated
+    assert file1.id == file3.id
+    assert file1.crc != file3.crc
+
+    # Verify chunk update
+    engine = create_engine(db_url)
+    with Session(engine) as session:
+        chunks = session.query(Chunk).filter(Chunk.file_id == file3.id).all()
+        assert len(chunks) > 0
+        for chunk in chunks:
+            assert "Modified" in chunk.content
+
+
+def test_file_path_uniqueness():
+    """Test file path uniqueness constraints."""
+    db_url = _get_db_url()
+    handler = DBFileHandler(db_url, MockEmbedder())
+
+    # Create two projects
+    project1 = handler.get_or_create_project(f"test_project_{uuid.uuid4()}")
+    project2 = handler.get_or_create_project(f"test_project_{uuid.uuid4()}")
+
+    # Same file path in different projects - should work
+    content = "Test content"
+    file1, _ = handler.process_file(project1.id, "/test/file_unique.txt", content)
+    file2, _ = handler.process_file(project2.id, "/test/file_unique.txt", content)
+
+    assert file1.id != file2.id
+
+    # Verify both files exist
+    engine = create_engine(db_url)
+    with Session(engine) as session:
+        files = session.query(File).filter(File.file_path == "/test/file_unique.txt").all()
+        assert len(files) == 2

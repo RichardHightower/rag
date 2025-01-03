@@ -2,20 +2,19 @@
 
 import random
 from typing import List
-from .base import Embedder
+from .base_embedder import BaseEmbedder
 
 
-class MockEmbedder(Embedder):
+class MockEmbedder(BaseEmbedder):
     """Mock embedder that returns random vectors."""
 
-    def __init__(self, model_name: str = "mock", dimension: int = 1536):
+    def __init__(self, dimension: int = 1536):
         """Initialize mock embedder.
 
         Args:
-            model_name: Name of the mock model
             dimension: Dimension of the embeddings
         """
-        super().__init__(model_name, dimension)
+        self.dimension = dimension
 
     def get_dimension(self) -> int:
         """Get the dimension of the embeddings.
@@ -25,16 +24,13 @@ class MockEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Generate random embeddings for testing.
 
         Args:
-            texts: List of texts to embed
+            texts: List of text strings to embed
 
         Returns:
-            List[List[float]]: List of random embeddings, one per text
+            List of embedding vectors
         """
-        return [
-            [random.uniform(-1, 1) for _ in range(self.dimension)]
-            for _ in texts
-        ]
+        return [[random.random() for _ in range(self.dimension)] for _ in texts]

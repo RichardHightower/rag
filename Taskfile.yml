@@ -56,18 +56,36 @@ tasks:
       - pytest tests/
       - echo "✅ All tests passed"
 
+  db:test-connectivity:
+    desc: "Test database connectivity and list databases"
+    cmds:
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT 1;"
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h localhost -p 5433 -U postgres -l
+      - echo PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT 1;"
+
   test:integration:
     desc: "Run integration tests"
-    deps: [db:up]
+    deps: [db:test-connectivity]
     cmds:
-      - sleep 5  # Give DB time to start
+      - sleep 5
+      - echo "Testing database connectivity..."
+      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT 1;"
+      - echo "Creating test database..."
+      - docker compose exec db psql -U ${POSTGRES_USER} -d postgres -c "DROP DATABASE IF EXISTS vectordb_test;"
+      - docker compose exec db psql -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE vectordb_test;"
+      - docker compose exec db psql -U ${POSTGRES_USER} -d vectordb_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+      - docker compose exec db psql -U ${POSTGRES_USER} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE vectordb_test TO ${POSTGRES_USER};"
+      - docker compose exec db psql -U ${POSTGRES_USER} -d vectordb_test -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${POSTGRES_USER};"
+      - docker compose exec db psql -U ${POSTGRES_USER} -d vectordb_test -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${POSTGRES_USER};"
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT 1;"
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d vectordb_test -c "SELECT 1;"
       - venv/bin/pytest tests/integration -v
 
   test:all:
     desc: "Run all tests (unit and integration)"
     deps: [db:up]
     cmds:
-      - sleep 5  # Give DB time to start
+      - sleep 5
       - venv/bin/pytest tests -v
 
   coverage:py:
@@ -101,13 +119,10 @@ tasks:
     cmds:
       - task: db:down
       - task: db:up
-      - sleep 5  # Give DB time to start
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "CREATE EXTENSION IF NOT EXISTS vector;"
+      - sleep 5
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
   demo:mock:
     desc: "Run example ingestion flow with mock embedder"
@@ -122,4 +137,4 @@ tasks:
   psql:
     desc: "Start an interactive psql session"
     cmds:
-      - PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      - env PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}
