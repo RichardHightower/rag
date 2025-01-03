@@ -118,3 +118,6 @@ celerybeat.pid
 *~
 *.bak
 *.tmp
+
+.pmarkdownc/
+project-structure.md
