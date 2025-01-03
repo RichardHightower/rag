@@ -1,0 +1,61 @@
+version: '3'
+
+tasks:
+  build:
+    desc: "Build Docker image for Postgres with pgvector"
+    cmds:
+      - docker compose build db
+      - echo "✅ Built Postgres Docker image with pgvector"
+
+  up:
+    desc: "Start Postgres container with pgvector"
+    cmds:
+      - docker compose up -d db
+      - echo "Waiting for database to be ready..."
+      - sleep 5
+      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /docker-entrypoint-initdb.d/init.sql
+      - echo "✅ Postgres container is running with pgvector extension"
+
+  down:
+    desc: "Stop and remove Postgres container"
+    cmds:
+      - docker compose down
+      - echo "✅ Stopped and removed Postgres container"
+
+  test:
+    desc: "Test Postgres connection and pgvector extension"
+    cmds:
+      - |
+        echo "Testing database connection..."
+        if ! docker compose exec db pg_isready -U ${POSTGRES_USER}; then
+          echo "❌ Database is not ready"
+          exit 1
+        fi
+      - |
+        echo "Testing pgvector extension..."
+        if ! docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" | grep -q vector; then
+          echo "❌ pgvector extension is not installed"
+          exit 1
+        fi
+      - echo "✅ Database connection and pgvector extension verified successfully!"
+
+  create-tables:
+    desc: "Create database tables"
+    cmds:
+      - |
+        echo "Creating database tables..."
+        docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /sql/ddl/01_init_tables.sql
+      - echo "✅ Database tables created successfully"
+
+  list-tables:
+    desc: "List all tables in the database"
+    cmds:
+      - |
+        echo "Listing database tables..."
+        docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "\dt"
+      - echo "✅ Database tables listed successfully"
+
+  psql:
+    desc: "Open psql console"
+    cmds:
+      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}

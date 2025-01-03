@@ -1,0 +1,15 @@
+This is a sample text file for testing the RAG system.
+
+The system should:
+1. Read this file
+2. Split it into chunks
+3. Generate embeddings for each chunk
+4. Store the chunks and embeddings in the database
+
+This demonstrates the basic functionality of:
+- File reading
+- Text chunking
+- Embedding generation
+- Database storage
+
+You can use either the mock embedder for testing or OpenAI's embedder for production use.

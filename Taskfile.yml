@@ -1,0 +1,125 @@
+version: '3'
+
+dotenv: ['.env']
+
+includes:
+  db: ./db/Taskfile.yml
+
+tasks:
+  setup-dev:
+    desc: "Set up the local dev environment"
+    cmds:
+      - echo "Setting up dev environment..."
+      - python -m venv venv
+      - source venv/bin/activate
+      - python -m pip install -r requirements.txt
+      - python -m pip install -e ".[dev]"
+      - echo "✅ Development environment setup complete"
+      
+  verify-deps:
+    desc: "Verify that dependencies are installed correctly"
+    cmds:
+      - source venv/bin/activate
+      - |
+        echo "Checking sqlalchemy..."
+        python -m pip show sqlalchemy | grep -q "Name: sqlalchemy" || { echo "❌ sqlalchemy not found"; exit 1; }
+        echo "✅ sqlalchemy found"
+      - |
+        echo "Checking openai..."
+        python -m pip show openai | grep -q "Name: openai" || { echo "❌ openai not found"; exit 1; }
+        echo "✅ openai found"
+      - |
+        echo "Checking sentence-transformers..."
+        python -m pip show sentence-transformers | grep -q "Name: sentence-transformers" || { echo "❌ sentence-transformers not found"; exit 1; }
+        echo "✅ sentence-transformers found"
+      - |
+        echo "Checking pgvector..."
+        python -m pip show pgvector | grep -q "Name: pgvector" || { echo "❌ pgvector not found"; exit 1; }
+        echo "✅ pgvector found"
+      - |
+        echo "Checking psycopg2-binary..."
+        python -m pip show psycopg2-binary | grep -q "Name: psycopg2-binary" || { echo "❌ psycopg2-binary not found"; exit 1; }
+        echo "✅ psycopg2-binary found"
+      - echo "All dependencies verified successfully! ✅"
+
+  freeze:
+    desc: "Generate requirements.txt with only top-level dependencies"
+    cmds:
+      - source venv/bin/activate
+      - python -m pip list --not-required --format=freeze > requirements.txt
+      - echo "✅ Generated requirements.txt with top-level dependencies"
+
+  test:py:
+    desc: "Run Python tests"
+    cmds:
+      - source venv/bin/activate
+      - pytest tests/
+      - echo "✅ All tests passed"
+
+  test:integration:
+    desc: "Run integration tests"
+    deps: [db:up]
+    cmds:
+      - sleep 5  # Give DB time to start
+      - venv/bin/pytest tests/integration -v
+
+  test:all:
+    desc: "Run all tests (unit and integration)"
+    deps: [db:up]
+    cmds:
+      - sleep 5  # Give DB time to start
+      - venv/bin/pytest tests -v
+
+  coverage:py:
+    desc: "Run Python tests with coverage report"
+    cmds:
+      - source venv/bin/activate
+      - pytest tests/ --cov=src/rag --cov-report=term-missing
+      - echo "✅ Coverage report generated"
+
+  format:
+    desc: "Format Python code"
+    cmds:
+      - source venv/bin/activate
+      - black src/ tests/
+      - isort src/ tests/
+      - echo "✅ Code formatting complete"
+
+  typecheck:
+    desc: "Run type checking"
+    cmds:
+      - source venv/bin/activate
+      - mypy src/
+      - echo "✅ Type checking complete"
+
+  lint:
+    desc: "Run all code quality checks"
+    deps: [format, typecheck, test:py]
+
+  db:recreate:
+    desc: "Recreate database from scratch"
+    cmds:
+      - task: db:down
+      - task: db:up
+      - sleep 5  # Give DB time to start
+      - |
+        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
+      - |
+        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
+      - |
+        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+  demo:mock:
+    desc: "Run example ingestion flow with mock embedder"
+    cmds:
+      - python src/scripts/run_example.py examples/sample.txt mock
+
+  demo:openai:
+    desc: "Run example ingestion flow with OpenAI embedder"
+    cmds:
+      - python src/scripts/run_example.py examples/sample.txt openai
+
+  psql:
+    desc: "Start an interactive psql session"
+    cmds:
+      - PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}
