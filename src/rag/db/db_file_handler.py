@@ -1,25 +1,27 @@
 """Database file handler for managing projects and files."""
 
-import os
 import hashlib
+import os
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Optional
-from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
+from ..config import CHUNK_OVERLAP, CHUNK_SIZE, DB_URL
 from ..embeddings import Embedder
-from ..config import DB_URL, CHUNK_SIZE, CHUNK_OVERLAP
-from .models import Base, Project, File, Chunk
-from .dimension_utils import ensure_vector_dimension
 from .chunking import chunk_text
+from .dimension_utils import ensure_vector_dimension
+from .models import Base, Chunk, File, Project
 
 
 class DBFileHandler:
     """Handler for managing files in the database."""
 
-    def __init__(self, db_url: Optional[str] = None, embedder: Optional[Embedder] = None):
+    def __init__(
+        self, db_url: Optional[str] = None, embedder: Optional[Embedder] = None
+    ):
         """Initialize the handler.
 
         Args:
@@ -29,19 +31,19 @@ class DBFileHandler:
         self.engine = create_engine(db_url or DB_URL)
         self.embedder = embedder
         self.Session = sessionmaker(bind=self.engine)
-        
+
         # Make models accessible
         self.Project = Project
         self.File = File
         self.Chunk = Chunk
-        
+
         # Ensure tables exist
         Base.metadata.create_all(self.engine)
-        
+
         # Ensure vector dimension matches embedder if provided
         if embedder:
             ensure_vector_dimension(self.engine, embedder.get_dimension())
-    
+
     @contextmanager
     def session_scope(self):
         """Provide a transactional scope around a series of operations."""
@@ -55,7 +57,9 @@ class DBFileHandler:
         finally:
             session.close()
 
-    def get_or_create_project(self, name: str, description: str = None) -> Project:
+    def get_or_create_project(
+        self, name: str, description: Optional[str] = None
+    ) -> Project:
         """Get an existing project by name or create a new one.
 
         Args:
@@ -78,10 +82,10 @@ class DBFileHandler:
                     name=project.name,
                     description=project.description,
                     created_at=project.created_at,
-                    updated_at=project.updated_at
+                    updated_at=project.updated_at,
                 )
                 return project_copy
-            
+
             project = Project(name=name, description=description)
             session.add(project)
             session.flush()
@@ -91,11 +95,11 @@ class DBFileHandler:
                 name=project.name,
                 description=project.description,
                 created_at=project.created_at,
-                updated_at=project.updated_at
+                updated_at=project.updated_at,
             )
             return project_copy
 
-    def create_project(self, name: str, description: str = None) -> Project:
+    def create_project(self, name: str, description: Optional[str] = None) -> Project:
         """Create a new project.
 
         Args:
@@ -112,7 +116,7 @@ class DBFileHandler:
             existing = session.query(Project).filter(Project.name == name).first()
             if existing:
                 raise ValueError(f"Project with name '{name}' already exists")
-            
+
             project = Project(name=name, description=description)
             session.add(project)
             session.flush()
@@ -122,7 +126,7 @@ class DBFileHandler:
                 name=project.name,
                 description=project.description,
                 created_at=project.created_at,
-                updated_at=project.updated_at
+                updated_at=project.updated_at,
             )
             return project_copy
 
@@ -144,7 +148,7 @@ class DBFileHandler:
                     name=project.name,
                     description=project.description,
                     created_at=project.created_at,
-                    updated_at=project.updated_at
+                    updated_at=project.updated_at,
                 )
             return None
 
@@ -164,8 +168,13 @@ class DBFileHandler:
                 return True
             return False
 
-    def add_file(self, project_id: int, file_path: str, chunk_size: Optional[int] = None, 
-                 overlap: Optional[int] = None) -> Optional[File]:
+    def add_file(
+        self,
+        project_id: int,
+        file_path: str,
+        chunk_size: Optional[int] = None,
+        overlap: Optional[int] = None,
+    ) -> Optional[File]:
         """Add a file to a project.
 
         Args:
@@ -179,10 +188,10 @@ class DBFileHandler:
         """
         if not self.embedder:
             raise ValueError("Embedder must be provided to add files")
-            
+
         chunk_size = chunk_size or CHUNK_SIZE
         overlap = overlap or CHUNK_OVERLAP
-        
+
         with self.session_scope() as session:
             # Verify project exists
             project = session.get(Project, project_id)
@@ -190,9 +199,9 @@ class DBFileHandler:
                 return None
 
             # Read file and compute metadata
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 content = f.read()
-            
+
             file_size = os.path.getsize(file_path)
             crc = hashlib.md5(content.encode()).hexdigest()
             filename = os.path.basename(file_path)
@@ -203,7 +212,7 @@ class DBFileHandler:
                 filename=filename,
                 file_path=file_path,
                 crc=crc,
-                file_size=file_size
+                file_size=file_size,
             )
             session.add(file)
             session.flush()  # Get file.id
@@ -214,27 +223,24 @@ class DBFileHandler:
 
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 chunk_obj = Chunk(
-                    file_id=file.id,
-                    content=chunk,
-                    embedding=embedding,
-                    chunk_index=idx
+                    file_id=file.id, content=chunk, embedding=embedding, chunk_index=idx
                 )
                 session.add(chunk_obj)
-            
+
             # Get a copy of the file data
             file_data = {
-                'id': file.id,
-                'project_id': file.project_id,
-                'filename': file.filename,
-                'file_path': file.file_path,
-                'crc': file.crc,
-                'file_size': file.file_size,
-                'created_at': file.created_at
+                "id": file.id,
+                "project_id": file.project_id,
+                "filename": file.filename,
+                "file_path": file.file_path,
+                "crc": file.crc,
+                "file_size": file.file_size,
+                "created_at": file.created_at,
             }
-            
+
             # Commit to ensure the data is saved
             session.commit()
-            
+
             # Return a new instance with the data
             return File(**file_data)
 

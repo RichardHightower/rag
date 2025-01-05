@@ -45,42 +45,30 @@ tasks:
   freeze:
     desc: "Generate requirements.txt with only top-level dependencies"
     cmds:
-      - source venv/bin/activate
       - python -m pip list --not-required --format=freeze > requirements.txt
       - echo "✅ Generated requirements.txt with top-level dependencies"
 
-  test:py:
+  test:all:
     desc: "Run Python tests"
     cmds:
-      - source venv/bin/activate
       - pytest tests/
       - echo "✅ All tests passed"
 
   test:integration:
     desc: "Run integration tests"
-    deps: [db:up]
     cmds:
       - sleep 5  # Give DB time to start
-      - venv/bin/pytest tests/integration -v
+      - pytest tests/integration -v
 
-  test:all:
-    desc: "Run all tests (unit and integration)"
-    deps: [db:up]
-    cmds:
-      - sleep 5  # Give DB time to start
-      - venv/bin/pytest tests -v
-
-  coverage:py:
+  test:coverage:
     desc: "Run Python tests with coverage report"
     cmds:
-      - source venv/bin/activate
       - pytest tests/ --cov=src/rag --cov-report=term-missing
       - echo "✅ Coverage report generated"
 
   format:
     desc: "Format Python code"
     cmds:
-      - source venv/bin/activate
       - black src/ tests/
       - isort src/ tests/
       - echo "✅ Code formatting complete"
@@ -94,7 +82,7 @@ tasks:
 
   lint:
     desc: "Run all code quality checks"
-    deps: [format, typecheck, test:py]
+    deps: [format, typecheck, test:all]
 
   db:recreate:
     desc: "Recreate database from scratch"

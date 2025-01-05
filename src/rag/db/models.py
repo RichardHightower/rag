@@ -1,16 +1,23 @@
 """Database models for RAG."""
 
-from datetime import datetime, timezone as tz
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, BigInteger, UniqueConstraint
+from datetime import datetime
+from datetime import timezone as tz
+from typing import List, Optional
+
+from pgvector.sqlalchemy import Vector  # type: ignore
+from sqlalchemy import (BigInteger, Column, DateTime, ForeignKey, Integer,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import declarative_base, relationship
-from pgvector.sqlalchemy import Vector
-
-# Use the new SQLAlchemy 2.0 style declarative base
-Base = declarative_base()
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
-def utc_now():
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    pass
+
+
+def utc_now() -> datetime:
     """Get current UTC datetime."""
     return datetime.now(tz.utc)
 
@@ -18,50 +25,68 @@ def utc_now():
 class Project(Base):
     """Project model."""
 
-    __tablename__ = 'projects'
-    __table_args__ = (
-        UniqueConstraint('name', name='uix_project_name'),
+    __tablename__ = "projects"
+    __table_args__ = (UniqueConstraint("name", name="uix_project_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
     )
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False, unique=True)
-    description = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=utc_now)
-    updated_at = Column(DateTime(timezone=True), default=utc_now)
-
-    files = relationship('File', back_populates='project', cascade='all, delete-orphan')
+    files: Mapped[List["File"]] = relationship(
+        "File", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class File(Base):
     """File model."""
 
-    __tablename__ = 'files'
+    __tablename__ = "files"
 
-    id = Column(Integer, primary_key=True)
-    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'))
-    filename = Column(String(255), nullable=False)
-    file_path = Column(String(1024), nullable=False)
-    crc = Column(String(32), nullable=False)
-    file_size = Column(BigInteger, nullable=False)
-    last_updated = Column(DateTime(timezone=True), default=utc_now)
-    last_ingested = Column(DateTime(timezone=True), default=utc_now)
-    created_at = Column(DateTime(timezone=True), default=utc_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    crc: Mapped[str] = mapped_column(String(32), nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    last_ingested: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
-    project = relationship('Project', back_populates='files')
-    chunks = relationship('Chunk', back_populates='file', cascade='all, delete-orphan')
+    project: Mapped["Project"] = relationship("Project", back_populates="files")
+    chunks: Mapped[List["Chunk"]] = relationship(
+        "Chunk", back_populates="file", cascade="all, delete-orphan"
+    )
 
 
 class Chunk(Base):
     """Chunk model with vector embedding."""
 
-    __tablename__ = 'chunks'
+    __tablename__ = "chunks"
 
-    id = Column(Integer, primary_key=True)
-    file_id = Column(Integer, ForeignKey('files.id', ondelete='CASCADE'))
-    content = Column(Text, nullable=False)
-    embedding = Column(Vector(1536))  # Default to OpenAI's dimension
-    chunk_index = Column(Integer, nullable=False)
-    chunk_metadata = Column(JSONB, default={})
-    created_at = Column(DateTime(timezone=True), default=utc_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("files.id", ondelete="CASCADE")
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[List[float]] = mapped_column(Vector(1536))  # type: ignore
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_metadata: Mapped[dict] = mapped_column(JSONB, default={})
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
-    file = relationship('File', back_populates='chunks')
+    file: Mapped["File"] = relationship("File", back_populates="chunks")

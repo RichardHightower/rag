@@ -25,22 +25,22 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]
     lines = text.splitlines()
     if not lines:
         return [text]  # Return original text if empty or just whitespace
-        
+
     chunks = []
     start = 0
 
     while start < len(lines):
         # Calculate end of current chunk
         end = min(start + chunk_size, len(lines))
-        
+
         # Join lines for this chunk
-        chunk = '\n'.join(lines[start:end])
+        chunk = "\n".join(lines[start:end])
         chunks.append(chunk)
-        
+
         # If we've reached the end, break
         if end == len(lines):
             break
-            
+
         # Move start position, accounting for overlap
         start = end - overlap
 

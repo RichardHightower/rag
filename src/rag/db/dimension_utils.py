@@ -16,18 +16,26 @@ def ensure_vector_dimension(engine, desired_dim: int):
     """
     with engine.connect() as conn:
         # Check current dimension
-        result = conn.execute(text("""
+        result = conn.execute(
+            text(
+                """
             SELECT atttypmod
             FROM pg_attribute
             WHERE attrelid = 'chunks'::regclass
             AND attname = 'embedding';
-        """))
+        """
+            )
+        )
         current_dim = result.scalar()
 
         if current_dim != desired_dim:
-            conn.execute(text(f"""
+            conn.execute(
+                text(
+                    f"""
                 ALTER TABLE chunks
                 ALTER COLUMN embedding TYPE vector({desired_dim})
                 USING embedding::vector({desired_dim});
-            """))
+            """
+                )
+            )
             conn.commit()
