@@ -1,9 +1,11 @@
 """Pytest configuration file."""
 
 import os
+
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
+
 from rag.embeddings import MockEmbedder
 
 
@@ -24,7 +26,6 @@ def test_db():
     database = "vectordb_test"
     db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
-
     print(f"POSTGRES_USER={username}")
     print(f"POSTGRES_PASSWORD={password}")
     print(f"POSTGRES_HOST={host}")
@@ -33,23 +34,24 @@ def test_db():
 
     # Create the engine with minimal pooling
     engine = create_engine(
-        db_url,
-        poolclass=NullPool,
-        connect_args={"connect_timeout": 5}
+        db_url, poolclass=NullPool, connect_args={"connect_timeout": 5}
     )
-    
+
     # Drop all tables first to ensure clean state
     with engine.connect() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE"))
         conn.execute(text("CREATE SCHEMA public"))
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))  # Add pgvector extension
+        conn.execute(
+            text("CREATE EXTENSION IF NOT EXISTS vector")
+        )  # Add pgvector extension
         conn.commit()
-    
+
     # Create all tables
     from rag.db.models import Base
+
     Base.metadata.create_all(engine)
-    
+
     yield engine
-    
+
     # Drop all tables after tests
     Base.metadata.drop_all(engine)

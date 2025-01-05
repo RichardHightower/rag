@@ -1,4 +1,5 @@
 """Simple script to test database connection."""
+
 import os
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ sys.path.insert(0, project_root)
 import psycopg2
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL
+
 from rag.db.models import Base
 
 
@@ -22,7 +24,7 @@ def test_psycopg2_connection():
             user=os.environ.get("POSTGRES_USER", "postgres"),
             password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
             host=os.environ.get("POSTGRES_HOST", "localhost"),
-            port=int(os.environ.get("POSTGRES_PORT", "5433"))
+            port=int(os.environ.get("POSTGRES_PORT", "5433")),
         )
         cur = conn.cursor()
         cur.execute("SELECT 1")
@@ -45,7 +47,7 @@ def test_sqlalchemy_connection():
             password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
             host=os.environ.get("POSTGRES_HOST", "localhost"),
             port=int(os.environ.get("POSTGRES_PORT", "5433")),
-            database="vectordb_test"
+            database="vectordb_test",
         )
         print(f"Connection URL: {db_url}")
         engine = create_engine(db_url, echo=True)
@@ -66,27 +68,31 @@ def test_create_tables():
             password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
             host=os.environ.get("POSTGRES_HOST", "localhost"),
             port=int(os.environ.get("POSTGRES_PORT", "5433")),
-            database="vectordb_test"
+            database="vectordb_test",
         )
         engine = create_engine(db_url, echo=True)
-        
+
         # Drop all tables first
         Base.metadata.drop_all(engine)
         print("Dropped all tables")
-        
+
         # Create all tables
         Base.metadata.create_all(engine)
         print("Created all tables")
-        
+
         # Verify tables exist
         with engine.connect() as conn:
-            result = conn.execute(text("""
+            result = conn.execute(
+                text(
+                    """
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
-            """)).fetchall()
+            """
+                )
+            ).fetchall()
             print("Tables created:", [r[0] for r in result])
-            
+
     except Exception as e:
         print(f"Table creation failed: {str(e)}")
 

@@ -1,9 +1,11 @@
 """OpenAI embedder implementation."""
 
 from typing import List
+
 import openai
+
+from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
 from .base import Embedder
-from ..config import OPENAI_API_KEY, OPENAI_MODEL, EMBEDDING_DIM
 
 
 class OpenAIEmbedder(Embedder):
@@ -49,7 +51,7 @@ class OpenAIEmbedder(Embedder):
         """
         embeddings = []
         for i in range(0, len(texts), self.batch_size):
-            batch = texts[i:i + self.batch_size]
+            batch = texts[i : i + self.batch_size]
             response = self.client.embeddings.create(
                 model=self.model_name,
                 input=batch,

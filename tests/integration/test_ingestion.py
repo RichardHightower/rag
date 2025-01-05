@@ -4,6 +4,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Add the project root to Python path
@@ -15,11 +16,11 @@ env_file = Path(project_root) / ".env"
 load_dotenv(env_file)
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 from sqlalchemy.engine import URL
+from sqlalchemy.orm import Session
 
-from rag.db.models import Project, File, Chunk
 from rag.db.db_file_handler import DBFileHandler
+from rag.db.models import Chunk, File, Project
 from rag.embeddings.mock_embedder import MockEmbedder
 
 
@@ -34,7 +35,6 @@ def _get_db_url() -> str:
     port = int(os.environ.get("POSTGRES_PORT", "5433").strip())
     database = "vectordb_test"
     db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-
 
     print(f"test ingestion POSTGRES_USER={username}")
     print(f"test ingestion POSTGRES_PASSWORD={password}")
@@ -164,5 +164,7 @@ def test_file_path_uniqueness():
     # Verify both files exist
     engine = create_engine(db_url)
     with Session(engine) as session:
-        files = session.query(File).filter(File.file_path == "/test/file_unique.txt").all()
+        files = (
+            session.query(File).filter(File.file_path == "/test/file_unique.txt").all()
+        )
         assert len(files) == 2

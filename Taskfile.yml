@@ -49,11 +49,22 @@ tasks:
       - python -m pip list --not-required --format=freeze > requirements.txt
       - echo "✅ Generated requirements.txt with top-level dependencies"
 
-  test:py:
-    desc: "Run Python tests"
+  clean:cache:
+    desc: "Clean Python cache files"
+    cmds:
+      - find . -type d -name "__pycache__" -exec rm -r {} +
+      - find . -type f -name "*.pyc" -delete
+      - find . -type f -name "*.pyo" -delete
+      - find . -type f -name "*.pyd" -delete
+      - find . -type f -name ".pytest_cache" -delete
+      - echo "✅ Cleaned Python cache files"
+
+  test:unit:
+    desc: "Run Python unit tests"
+    deps: [clean:cache]
     cmds:
       - source venv/bin/activate
-      - pytest tests/
+      - pytest tests/unit/
       - echo "✅ All tests passed"
 
   db:test-connectivity:
@@ -65,7 +76,7 @@ tasks:
 
   test:integration:
     desc: "Run integration tests"
-    deps: [db:test-connectivity]
+    deps: [db:test-connectivity, clean:cache]
     cmds:
       - sleep 5
       - echo "Testing database connectivity..."
@@ -83,13 +94,14 @@ tasks:
 
   test:all:
     desc: "Run all tests (unit and integration)"
-    deps: [db:up]
+    deps: [db:up, clean:cache]
     cmds:
       - sleep 5
       - venv/bin/pytest tests -v
 
   coverage:py:
     desc: "Run Python tests with coverage report"
+    deps: [clean:cache]
     cmds:
       - source venv/bin/activate
       - pytest tests/ --cov=src/rag --cov-report=term-missing
@@ -101,7 +113,7 @@ tasks:
       - source venv/bin/activate
       - black src/ tests/
       - isort src/ tests/
-      - echo "✅ Code formatting complete"
+      - echo "✅ Code formatted"
 
   typecheck:
     desc: "Run type checking"

@@ -1,1 +1,1 @@
-from .text_chunk import split_text_into_chunks, TextChunk
+from .text_chunk import TextChunk, split_text_into_chunks

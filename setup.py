@@ -5,8 +5,8 @@ from setuptools import setup, find_packages
 setup(
     name="rag",
     version="0.1.0",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(where="src/rag"),
+    package_dir={"": "src/rag"},
     install_requires=[
         "openai>=1.58.1",
         "sqlalchemy>=2.0.36",
