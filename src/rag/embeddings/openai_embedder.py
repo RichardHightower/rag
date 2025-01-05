@@ -1,9 +1,11 @@
 """OpenAI embedder implementation."""
 
-from typing import List
+from typing import List, Optional
+
 import openai
+
+from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
 from .base import Embedder
-from ..config import OPENAI_API_KEY, OPENAI_MODEL, EMBEDDING_DIM
 
 
 class OpenAIEmbedder(Embedder):
@@ -13,7 +15,7 @@ class OpenAIEmbedder(Embedder):
         self,
         model_name: str = OPENAI_MODEL,
         dimension: int = EMBEDDING_DIM,
-        api_key: str = OPENAI_API_KEY,
+        api_key: Optional[str] = OPENAI_API_KEY,
         batch_size: int = 16,
     ):
         """Initialize OpenAI embedder.
@@ -23,6 +25,9 @@ class OpenAIEmbedder(Embedder):
             dimension: Dimension of the embeddings
             api_key: OpenAI API key
             batch_size: Number of texts to embed in one batch
+
+        Raises:
+            ValueError: If no API key is provided
         """
         super().__init__(model_name, dimension)
         if not api_key:
@@ -49,7 +54,7 @@ class OpenAIEmbedder(Embedder):
         """
         embeddings = []
         for i in range(0, len(texts), self.batch_size):
-            batch = texts[i:i + self.batch_size]
+            batch = texts[i : i + self.batch_size]
             response = self.client.embeddings.create(
                 model=self.model_name,
                 input=batch,

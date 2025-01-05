@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Find the project root directory
@@ -18,11 +19,13 @@ DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
 DB_PORT = int(os.getenv("POSTGRES_PORT", "5433"))
 DB_NAME = os.getenv("POSTGRES_DB", "vectordb")
 
+
 # Database URLs
-def get_db_url(dbname: str = None) -> str:
+def get_db_url(dbname: str = "vectordb") -> str:
     """Get database URL with optional database name override."""
     db = dbname or DB_NAME
     return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{db}"
+
 
 DB_URL = get_db_url()
 

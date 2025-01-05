@@ -2,6 +2,7 @@
 
 import random
 from typing import List
+
 from .base import Embedder
 
 
@@ -34,7 +35,4 @@ class MockEmbedder(Embedder):
         Returns:
             List[List[float]]: List of random embeddings, one per text
         """
-        return [
-            [random.uniform(-1, 1) for _ in range(self.dimension)]
-            for _ in texts
-        ]
+        return [[random.uniform(-1, 1) for _ in range(self.dimension)] for _ in texts]
