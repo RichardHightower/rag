@@ -6,6 +6,12 @@ includes:
   db: ./db/Taskfile.yml
 
 tasks:
+  install:
+    desc: Install package in development mode with all dependencies
+    cmds:
+      - pip install -e .
+      - pip install -e ".[dev]"
+
   setup-dev:
     desc: "Set up the local dev environment"
     cmds:
@@ -43,10 +49,19 @@ tasks:
       - echo "All dependencies verified successfully! ✅"
 
   freeze:
-    desc: "Generate requirements.txt with only top-level dependencies"
+    desc: Generate requirements files
     cmds:
-      - python -m pip list --not-required --format=freeze > requirements.txt
-      - echo "✅ Generated requirements.txt with top-level dependencies"
+      # Generate core requirements first
+      - pip install -e "."
+      - pip freeze --exclude-editable > requirements.txt
+      # Generate dev requirements next
+      - pip install -e ".[dev]"
+      - pip freeze --exclude-editable > requirements-dev.txt
+    sources:
+      - setup.py
+    generates:
+      - requirements.txt
+      - requirements-dev.txt
 
   test:all:
     desc: "Run Python tests"
@@ -72,6 +87,7 @@ tasks:
       - pytest "{{.CLI_ARGS}}"
       - echo "✅ Test completed"
 
+
   test:coverage:
     desc: "Run Python tests with coverage report"
     cmds:
@@ -88,7 +104,6 @@ tasks:
   typecheck:
     desc: "Run type checking"
     cmds:
-      - source venv/bin/activate
       - mypy src/
       - echo "✅ Type checking complete"
 

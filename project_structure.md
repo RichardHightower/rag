@@ -339,25 +339,24 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
-        "openai>=1.58.1",
-        "sqlalchemy>=2.0.36",
-        "psycopg2-binary>=2.9.10",
-        "pgvector>=0.3.6",
-        "python-dotenv>=1.0.1",
+        "openai>=1.58.1,<2.0.0",
+        "sqlalchemy>=2.0.36,<3.0.0",
+        "psycopg2-binary>=2.9.10,<3.0.0",
+        "pgvector>=0.3.6,<0.4.0",
+        "python-dotenv>=1.0.1,<2.0.0",
     ],
     extras_require={
         "dev": [
-            "black>=23.0.0",
-            "isort>=5.0.0",
-            "mypy>=1.0.0",
-            "pytest>=7.0.0",
-            "pytest-cov>=4.1.0",
-            "pytest-cov===6.0.0"
+            "black>=24.1.0,<25.0.0",
+            "isort>=5.13.0,<6.0.0",
+            "mypy>=1.8.0,<2.0.0",
+            "pytest>=8.0.0,<9.0.0",
+            "pytest-cov>=4.1.0,<5.0.0",
+            "types-psycopg2>=2.9.21,<3.0.0"
         ]
     },
-    python_requires=">=3.10",
+    python_requires=">=3.12,<3.13",
 )
-
 ```
 
 ### tests/
@@ -522,6 +521,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from rag.config import EMBEDDING_DIM, OPENAI_MODEL
+from rag.db import Chunk
 from rag.embeddings.openai_embedder import OpenAIEmbedder
 
 
@@ -570,7 +570,8 @@ def test_embed_texts_single_batch(mock_openai):
 
     embedder = OpenAIEmbedder(api_key="test_key", dimension=3, batch_size=5)
     texts = ["Hello", "World"]
-    embeddings = embedder.embed_texts(texts)
+    chunks = [Chunk(content=text) for text in texts]
+    embeddings = embedder.embed_texts(chunks)
 
     # Verify the results
     assert len(embeddings) == 2
@@ -598,7 +599,7 @@ def test_embed_texts_multiple_batches(mock_openai):
 
     embedder = OpenAIEmbedder(api_key="test_key", dimension=2, batch_size=2)
     texts = ["Text1", "Text2", "Text3"]
-    embeddings = embedder.embed_texts(texts)
+    embeddings = embedder.embed_texts([Chunk(content=text) for text in texts])
 
     # Verify the results
     assert len(embeddings) == 3
@@ -634,16 +635,16 @@ from sqlalchemy.exc import IntegrityError
 from rag.config import get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.embeddings.mock_embedder import MockEmbedder
+from rag.model import File
 
 
 @pytest.fixture
 def sample_file():
     """Create a temporary sample file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(
-            "This is a test file.\nIt has multiple lines.\nEach line will be chunked."
-        )
-        return Path(f.name)
+    content = "This is a test file.\nIt has multiple lines.\nEach line will be chunked."
+    return File(
+        name="test.txt", path="/path/to/test.txt", crc="test123", content=content
+    )
 
 
 @pytest.fixture
@@ -663,7 +664,7 @@ def test_file_ingestion(test_db, sample_file, unique_name):
     assert project.name == unique_name
 
     # Add file
-    file = handler.add_file(project.id, str(sample_file))
+    file = handler.add_file(project.id, sample_file)
     assert file is not None
 
     # Verify chunks were created
@@ -768,7 +769,7 @@ def sample_file():
         path="/path/to/test.txt",
         crc="abcdef123456",
         content="\n".join([f"Line {i}" for i in range(10)]),
-        meta_data={"type": "test"}
+        meta_data={"type": "test"},
     )
 
 
@@ -808,7 +809,7 @@ def test_empty_text(chunker):
         path="/path/to/empty.txt",
         crc="empty123",
         content="",
-        meta_data={}
+        meta_data={},
     )
     chunks = chunker.chunk_text(empty_file)
     assert len(chunks) == 1
@@ -822,7 +823,7 @@ def test_whitespace_text(chunker):
         path="/path/to/whitespace.txt",
         crc="space123",
         content="   \n  \n  ",
-        meta_data={}
+        meta_data={},
     )
     chunks = chunker.chunk_text(whitespace_file)
     assert len(chunks) == 1
@@ -836,7 +837,7 @@ def test_single_line(chunker):
         path="/path/to/single.txt",
         crc="single123",
         content="Single line",
-        meta_data={}
+        meta_data={},
     )
     chunks = chunker.chunk_text(single_line_file)
     assert len(chunks) == 1
@@ -850,7 +851,7 @@ def test_text_smaller_than_chunk(chunker):
         path="/path/to/small.txt",
         crc="small123",
         content="\n".join([f"Line {i}" for i in range(5)]),
-        meta_data={}
+        meta_data={},
     )
     chunker = LineChunker(chunk_size=10, overlap=5)
     chunks = chunker.chunk_text(small_file)
@@ -865,7 +866,7 @@ def test_no_overlap(chunker):
         path="/path/to/test.txt",
         crc="test123",
         content="\n".join([f"Line {i}" for i in range(6)]),
-        meta_data={}
+        meta_data={},
     )
     chunker = LineChunker(chunk_size=2, overlap=0)
     chunks = chunker.chunk_text(file)
@@ -900,6 +901,7 @@ def test_invalid_overlap(chunker, sample_file):
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
         chunker = LineChunker(chunk_size=2, overlap=3)
         chunker.chunk_text(sample_file)
+
 ```
 
 #### tests/db/
@@ -909,8 +911,10 @@ def test_invalid_overlap(chunker, sample_file):
 ```python
 """Test database file handler."""
 
+import hashlib
 import os
 import tempfile
+from logging import debug
 from pathlib import Path
 
 import pytest
@@ -918,6 +922,7 @@ import pytest
 from rag.config import TEST_DB_NAME, get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.embeddings.mock_embedder import MockEmbedder
+from rag.model import File as FileModel
 
 
 @pytest.fixture
@@ -926,12 +931,15 @@ def embedder():
     return MockEmbedder()
 
 
-@pytest.fixture
-def sample_text_file():
-    """Create a temporary text file for testing."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write("Line 1\nLine 2\nLine 3\n")
-        return Path(f.name)
+def create_test_file(content="Line 1\nLine 2\nLine 3\n"):
+    """Create a FileModel instance for testing."""
+    return FileModel(
+        name="test.txt",
+        path="/path/to/test.txt",
+        crc=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        content=content,
+        meta_data={},
+    )
 
 
 def test_create_project(test_db):
@@ -997,58 +1005,74 @@ def test_delete_nonexistent_project(test_db):
     assert handler.delete_project(999) is False
 
 
-def test_add_file(test_db, embedder, sample_text_file):
+def test_add_file(test_db, embedder):
     """Test adding a file to a project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
     # Create project
     project = handler.create_project("Test Project")
 
+    # Create test file
+    file_model = create_test_file()
+
+    debug(file_model)
+
     # Add file
-    file = handler.add_file(project.id, str(sample_text_file))
+    success = handler.add_file(project.id, file_model)
+    assert success is not None
 
     # Verify file was added
-    assert file is not None
-    assert file.project_id == project.id
-    assert file.filename == sample_text_file.name
-    assert file.file_path == str(sample_text_file)
-    assert file.created_at is not None
-
-    # Verify chunks were created
     with handler.session_scope() as session:
-        db_file = session.get(handler.File, file.id)
-        assert db_file is not None
-        assert len(db_file.chunks) > 0
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        assert file.project_id == project.id
+        assert file.filename == file_model.name
+        assert file.file_path == file_model.path
+        assert file.created_at is not None
+
+        # Verify chunks were created
+        chunks = session.query(handler.Chunk).filter_by(file_id=file.id).all()
+        assert len(chunks) > 0
 
         # Verify chunk content and embeddings
-        for chunk in db_file.chunks:
+        for chunk in chunks:
             assert chunk.content is not None
             assert chunk.embedding is not None
+            assert len(chunk.embedding) == embedder.get_dimension()
 
 
-def test_add_file_to_nonexistent_project(test_db, embedder, sample_text_file):
+def test_add_file_to_nonexistent_project(test_db, embedder):
     """Test adding a file to a non-existent project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    file_model = create_test_file()
 
     # Try to add file to non-existent project
-    file = handler.add_file(999, str(sample_text_file))
-    assert file is None
+    success = handler.add_file(999, file_model)
+    assert success is None
 
 
-def test_remove_file(test_db, embedder, sample_text_file):
+def test_remove_file(test_db, embedder):
     """Test removing a file from a project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
     # Create project and add file
     project = handler.create_project("Test Project")
-    file = handler.add_file(project.id, str(sample_text_file))
+    file_model = create_test_file()
+    success = handler.add_file(project.id, file_model)
+    assert success is not None
+
+    # Get file ID
+    with handler.session_scope() as session:
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        file_id = file.id
 
     # Remove file
-    assert handler.remove_file(project.id, file.id) is True
+    assert handler.remove_file(project.id, file_id) is True
 
     # Verify file is removed
     with handler.session_scope() as session:
-        assert session.get(handler.File, file.id) is None
+        assert session.get(handler.File, file_id) is None
 
 
 def test_remove_nonexistent_file(test_db, embedder):
@@ -1062,7 +1086,7 @@ def test_remove_nonexistent_file(test_db, embedder):
     assert handler.remove_file(project.id, 999) is False
 
 
-def test_remove_file_wrong_project(test_db, embedder, sample_text_file):
+def test_remove_file_wrong_project(test_db, embedder):
     """Test removing a file from the wrong project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
@@ -1071,25 +1095,23 @@ def test_remove_file_wrong_project(test_db, embedder, sample_text_file):
     project2 = handler.create_project("Project 2")
 
     # Add file to project1
-    file = handler.add_file(project1.id, str(sample_text_file))
+    file_model = create_test_file()
+    file = handler.add_file(project1.id, file_model)
+    assert file is not None
+
+    # Get file ID
+    with handler.session_scope() as session:
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        file_id = file.id
 
     # Try to remove file from project2
-    assert handler.remove_file(project2.id, file.id) is False
-
-
-def test_embedder_dimension_handling(test_db, embedder):
-    """Test embedder dimension handling."""
-    # First handler initializes tables
-    handler1 = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
-
-    # Second handler should work with same dimension
-    handler2 = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
-    assert handler2 is not None
+    assert handler.remove_file(project2.id, file_id) is False
 
 
 def teardown_module(module):
     """Clean up temporary files after tests."""
-    # Clean up the temporary file
+    # Clean up any .txt files in the current directory
     for item in Path().glob("*.txt"):
         if item.is_file() and item.suffix == ".txt":
             try:
@@ -1445,8 +1467,8 @@ class Embedder(ABC):
 import random
 from typing import List
 
-from .base import Embedder
 from ..model import Chunk
+from .base import Embedder
 
 
 class MockEmbedder(Embedder):
@@ -1492,8 +1514,8 @@ from typing import List, Optional
 import openai
 
 from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
-from .base import Embedder
 from ..model import Chunk
+from .base import Embedder
 
 
 class OpenAIEmbedder(Embedder):
@@ -1531,18 +1553,19 @@ class OpenAIEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
+    def embed_texts(self, chunks: List[Chunk]) -> List[List[float]]:
         """Embed a list of texts using OpenAI's API.
 
         Args:
-            texts: List of texts to embed
+            chunks: List of text chunks to embed
 
         Returns:
             List[List[float]]: List of embeddings, one per text
         """
         embeddings = []
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i : i + self.batch_size]
+        for i in range(0, len(chunks), self.batch_size):
+            batch = [chunk.content for chunk in chunks[i : i + self.batch_size]]
+
             response = self.client.embeddings.create(
                 model=self.model_name,
                 input=batch,
@@ -1592,7 +1615,6 @@ class Chunker(ABC):
         """
         pass
 
-
 ```
 
 ###### line_chunker.py
@@ -1600,10 +1622,9 @@ class Chunker(ABC):
 ```python
 from typing import List
 
-from .base_chunker import Chunker
-from ..model import Chunk, File
-
 from ..config import CHUNK_OVERLAP, CHUNK_SIZE
+from ..model import Chunk, File
+from .base_chunker import Chunker
 
 
 class LineChunker(Chunker):
@@ -1649,7 +1670,7 @@ class LineChunker(Chunker):
                 Chunk(
                     target_size=self.chunk_size,
                     content=chunk_content,
-                    index=chunk_index
+                    index=chunk_index,
                 )
             )
 
@@ -1685,36 +1706,41 @@ __all__ = ["Project", "File", "Chunk", "ensure_vector_dimension", "DBFileHandler
 ```python
 """Database file handler for managing projects and files."""
 
-
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from rag.model import Chunk as ChunkModel
+from rag.model import File as FileModel
+
 from ..chunking import LineChunker
 from ..config import DB_URL
-
 from ..embeddings import Embedder, OpenAIEmbedder
 from .dimension_utils import ensure_vector_dimension
 from .models import Base, Chunk, File, Project
-from rag.model import File as FileModel
+
 
 class DBFileHandler:
     """Handler for managing files in the database."""
 
-    def __init__(
-        self, embedder: Embedder = OpenAIEmbedder(), db_url: Optional[str] = DB_URL
-    ):
+    def __init__(self, db_url: str = DB_URL, embedder: Optional[Embedder] = None):
         """Initialize the handler.
 
         Args:
             db_url: Database URL, defaults to config.DB_URL
             embedder: Embedder instance for generating embeddings
+
+        Raises:
+            ValueError: If db_url is None
         """
+        if db_url is None:
+            raise ValueError("Database URL must be provided")
+
         self.engine = create_engine(db_url)
-        self.embedder = embedder
+        self.embedder = embedder or OpenAIEmbedder()
         self.Session = sessionmaker(bind=self.engine)
         self.chunker = LineChunker()
 
@@ -1727,8 +1753,8 @@ class DBFileHandler:
         Base.metadata.create_all(self.engine)
 
         # Ensure vector dimension matches embedder if provided
-        if embedder:
-            ensure_vector_dimension(self.engine, embedder.get_dimension())
+        if self.embedder:
+            ensure_vector_dimension(self.engine, self.embedder.get_dimension())
 
     @contextmanager
     def session_scope(self):
@@ -1854,11 +1880,7 @@ class DBFileHandler:
                 return True
             return False
 
-    def add_file(
-        self,
-        project_id: int,
-        file: FileModel
-    ) -> bool:
+    def add_file(self, project_id: int, file_model: FileModel) -> Optional[File]:
         """Add a file to a project.
 
         Args:
@@ -1868,15 +1890,13 @@ class DBFileHandler:
             bool: Was the file created or not
         """
 
-
-
-        with (self.session_scope() as session):
+        with self.session_scope() as session:
             # Verify project exists
             project = session.get(Project, project_id)
 
             if not project:
                 # TODO turn this into an exception
-                return False
+                return None
 
             # TODO Check to see if the file already exists with the same name, path, crc and project id in the DB,
             # if it does, return false. We won't reindex files that already exist.
@@ -1884,28 +1904,43 @@ class DBFileHandler:
             # Create file record
             file = File(
                 project_id=project_id,
-                filename=file.name,
-                file_path=file.path,
-                crc=file.crc,
-                file_size=file.size,
+                filename=file_model.name,
+                file_path=file_model.path,
+                crc=file_model.crc,
+                file_size=file_model.size,
             )
             session.add(file)
             session.flush()  # Get file.id
 
             # Create chunks
-            chunks = self.chunker.chunk_text(file)
+            chunks: List[ChunkModel] = self.chunker.chunk_text(file_model)
             embeddings = self.embedder.embed_texts(chunks)
 
-            for (chunk, embedding) in zip(chunks, embeddings):
+            for chunk, embedding in zip(chunks, embeddings):
                 chunk_obj = Chunk(
-                    file_id=file.id, content=chunk.content, embedding=embedding, chunk_index=chunk.chunk_index
+                    file_id=file.id,
+                    content=chunk.content,
+                    embedding=embedding,
+                    chunk_index=chunk.index,
                 )
                 session.add(chunk_obj)
 
+                # Get a copy of the file data
+            file_data = {
+                "id": file.id,
+                "project_id": file.project_id,
+                "filename": file.filename,
+                "file_path": file.file_path,
+                "crc": file.crc,
+                "file_size": file.file_size,
+                "created_at": file.created_at,
+            }
+
             # Commit to ensure the data is saved
             session.commit()
-            return True
 
+            # Return a new instance with the data
+            return File(**file_data)
 
     def remove_file(self, project_id: int, file_id: int) -> bool:
         """Remove a file from a project.
@@ -2032,7 +2067,7 @@ class File(Base):
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    crc: Mapped[str] = mapped_column(String(32), nullable=False)
+    crc: Mapped[str] = mapped_column(String(128), nullable=False)
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     last_updated: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
@@ -2079,6 +2114,7 @@ class Chunk(Base):
 #!/usr/bin/env python3
 """Example script demonstrating file ingestion and embedding."""
 
+import hashlib
 import logging
 import os
 import sys
@@ -2091,6 +2127,7 @@ from rag.db.db_file_handler import DBFileHandler
 from rag.db.models import Base
 from rag.embeddings.mock_embedder import MockEmbedder
 from rag.embeddings.openai_embedder import OpenAIEmbedder
+from rag.model import File as FileModel
 
 # Configure logging
 logging.basicConfig(
@@ -2122,6 +2159,28 @@ def ensure_tables_exist():
     logger.info("Database tables created")
 
 
+def create_file_model(file_path: str) -> FileModel:
+    """Create a FileModel instance from a file path.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        FileModel instance
+    """
+    path = Path(file_path)
+    content = path.read_text()
+    crc = hashlib.md5(content.encode()).hexdigest()
+
+    return FileModel(
+        name=path.name,
+        path=str(path),
+        crc=crc,
+        content=content,
+        meta_data={"type": path.suffix.lstrip(".")},
+    )
+
+
 def ingest_file(file_path: str, embedder_type: str = "mock"):
     """Ingest a file into the database.
 
@@ -2137,24 +2196,31 @@ def ingest_file(file_path: str, embedder_type: str = "mock"):
     logger.info(f"Using {embedder.__class__.__name__}")
 
     # Create DB handler
-    handler = DBFileHandler(get_db_url(), embedder)
+    handler = DBFileHandler(embedder=embedder)
 
     # Create or get project
     project = handler.get_or_create_project("Demo Project", "Example file ingestion")
     logger.info(f"Using project: {project.name} (ID: {project.id})")
 
+    # Create FileModel
+    file_model = create_file_model(file_path)
+
     # Add file to project
-    file = handler.add_file(project.id, file_path)
-    if file is None:
+    success = handler.add_file(project.id, file_model)
+    if not success:
         logger.error("Failed to add file")
         return
 
-    logger.info(f"Added file: {file.filename} (ID: {file.id})")
+    logger.info(f"Added file: {file_model.name}")
 
     # Print chunk count
     with handler.session_scope() as session:
-        chunk_count = session.query(handler.Chunk).filter_by(file_id=file.id).count()
-        logger.info(f"Created {chunk_count} chunks with embeddings")
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        if file:
+            chunk_count = (
+                session.query(handler.Chunk).filter_by(file_id=file.id).count()
+            )
+            logger.info(f"Created {chunk_count} chunks with embeddings")
 
 
 def main():
