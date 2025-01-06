@@ -43,8 +43,8 @@ jobs:
         sleep 5  # Give DB time to initialize
         task db:recreate
 
-    - name: Run linting and tests
-      run: task lint
+    - name: Run install and lint
+      run: task ci
 
     - name: Run test coverage
       run: task test:coverage

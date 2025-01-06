@@ -6,6 +6,21 @@ includes:
   db: ./db/Taskfile.yml
 
 tasks:
+  install:
+    desc: Install package in development mode with all dependencies
+    cmds:
+      - python -m venv venv
+      - . venv/bin/activate
+      - pip install -e .
+      - pip install -e ".[dev]"
+    silent: true
+
+  ci:
+    desc: Run continuous integration checks
+    deps: [ install ]
+    cmds:
+      - task: lint
+
   setup-dev:
     desc: "Set up the local dev environment"
     cmds:
