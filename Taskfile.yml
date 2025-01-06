@@ -45,13 +45,12 @@ tasks:
   freeze:
     desc: Generate requirements files
     cmds:
-      # Core requirements (excluding editable installs and dev dependencies)
-      - 'pip install -e "."'
-      - 'pip freeze --exclude-editable > requirements.txt'
-      # Development requirements (including everything)
-      - 'pip install -e ".[dev]"'
-      - 'pip freeze > requirements-dev.txt'
-      - echo "✅ Generated requirements.txt with top-level dependencies"
+      # Generate core requirements first
+      - pip install -e "."
+      - pip freeze --exclude-editable > requirements.txt
+      # Generate dev requirements next
+      - pip install -e ".[dev]"
+      - pip freeze --exclude-editable > requirements-dev.txt
     sources:
       - setup.py
     generates:
