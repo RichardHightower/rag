@@ -43,10 +43,20 @@ tasks:
       - echo "All dependencies verified successfully! ✅"
 
   freeze:
-    desc: "Generate requirements.txt with only top-level dependencies"
+    desc: Generate requirements files
     cmds:
-      - python -m pip list --not-required --format=freeze > requirements.txt
+      # Core requirements (excluding editable installs and dev dependencies)
+      - 'pip install -e "."'
+      - 'pip freeze --exclude-editable > requirements.txt'
+      # Development requirements (including everything)
+      - 'pip install -e ".[dev]"'
+      - 'pip freeze > requirements-dev.txt'
       - echo "✅ Generated requirements.txt with top-level dependencies"
+    sources:
+      - setup.py
+    generates:
+      - requirements.txt
+      - requirements-dev.txt
 
   test:all:
     desc: "Run Python tests"
@@ -71,6 +81,7 @@ tasks:
     cmds:
       - pytest "{{.CLI_ARGS}}"
       - echo "✅ Test completed"
+
 
   test:coverage:
     desc: "Run Python tests with coverage report"
