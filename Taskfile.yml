@@ -98,7 +98,6 @@ tasks:
   typecheck:
     desc: "Run type checking"
     cmds:
-      - source venv/bin/activate
       - mypy src/
       - echo "✅ Type checking complete"
 
