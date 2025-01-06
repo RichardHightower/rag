@@ -104,6 +104,7 @@ task setup-dev
 This command will:
 - Create a virtual environment
 - Install development dependencies
+- Install the package in editable mode with dev dependencies
 - Set up pre-commit hooks
 
 3. Configure environment variables:
@@ -127,7 +128,7 @@ cp .env.example .env
 
 ### Machine Learning
 - **OpenAI**: For generating embeddings (optional)
-- **Hugging Face Transformers**: Alternative for generating embeddings
+- **Sentence Transformers**: Alternative for generating embeddings
 
 ### Testing
 - **pytest**: Testing framework
@@ -136,80 +137,124 @@ cp .env.example .env
 ### Development Tools
 - **black**: Code formatting
 - **mypy**: Static type checking
-- **ruff**: Fast Python linter
-
-## Docker Management
-
-### Database Container
-
-Start the database:
-```bash
-task db:up
-```
-
-Verify database setup:
-```bash
-task db:test
-```
-
-Other database commands:
-```bash
-task db:down            # Stop database
-task db:recreate        # Reset database
-task db:psql           # Open PostgreSQL console
-task db:list-tables    # List all tables
-```
+- **isort**: Import sorting
 
 ## Task Commands Reference
 
-### Development Workflow
+### Development Setup and Maintenance
 
 ```bash
-task setup-dev         # Initial dev environment setup
-task verify-deps       # Verify dependencies are correctly installed
-task freeze           # Update requirements.txt
-```
-
-### Code Quality
-
-```bash
-task format           # Format code with black
-task lint            # Run all linters
-task typecheck       # Run mypy type checking
+task setup-dev             # Initial dev environment setup (venv, dependencies)
+task verify-deps           # Verify dependencies are correctly installed
+task freeze               # Generate requirements.txt with top-level dependencies
 ```
 
 ### Testing
 
+The project provides several test commands for different testing scenarios:
+
 ```bash
-task test:all         # Run all tests
-task test:integration # Run integration tests only
-task test:py         # Run Python unit tests
-task coverage:py     # Run tests with coverage report
+task test:all             # Run all Python tests across all test directories
+                         # This is the most comprehensive test command
+                         # Use this to verify everything works before commits
+
+task test:name -- <pattern>  # Run tests matching a specific pattern
+                            # Examples:
+                            # Run a specific test function:
+                            #   task test:name -- test_basic_chunking
+                            # Run all tests in a module:
+                            #   task test:name -- test_line_chunker
+                            # Run tests matching a pattern:
+                            #   task test:name -- "chunker.*basic"
+
+task test:integration    # Run only integration tests (in tests/integration/)
+                        # These tests interact with the database
+                        # Will wait 5 seconds for DB to start before running
+                        # Use -v flag for verbose output
+
+task test:coverage      # Run tests with coverage reporting
+                        # Shows line-by-line coverage information
+                        # Reports missing coverage in the terminal
+                        # Essential to run before submitting PRs
 ```
 
-### Demo and Examples
+### Pre-Commit Requirements
+
+Before committing code or submitting pull requests, you should run:
+
+1. `task lint` - This runs:
+   - Code formatting (black, isort)
+   - Type checking (mypy)
+   - All tests (test:all)
+   This ensures your code meets style guidelines and passes all tests.
+
+2. `task test:coverage` - This checks test coverage and reports:
+   - Percentage of code covered by tests
+   - Which lines are not covered
+   - Helps identify areas needing additional tests
+   
+Example pre-commit workflow:
+```bash
+# Format and verify code
+task lint
+
+# Check test coverage
+task test:coverage
+
+# If all checks pass, commit your changes
+git commit -m "Your commit message"
+```
+
+### Testing Best Practices
+
+1. **Running Specific Tests**
+   - Use `test:name` for focused testing during development
+   - Always run `test:all` before committing
+   - Run `test:integration` when changing database interactions
+
+2. **Coverage Requirements**
+   - Aim for high test coverage (>80%)
+   - Run `test:coverage` to identify gaps
+   - Write tests for any uncovered code
+
+3. **Integration Testing**
+   - Database should be running (`task db:up`)
+   - Uses a separate test database
+   - Automatically handles test data cleanup
+
+### Code Quality
 
 ```bash
-task demo:mock        # Run demo with mock embedder
-task demo:openai      # Run demo with OpenAI embedder
+task format              # Format code with black and isort
+task typecheck          # Run mypy type checking
+task lint               # Run all code quality checks (format, typecheck, test:all)
+```
+
+### Documentation
+
+```bash
+task documentation:create-project-markdown  # Create Markdown for LLMs
 ```
 
 ### Database Management
 
 ```bash
-task db:build              # Build custom Postgres image
-task db:up                 # Start database
-task db:down              # Stop database
-task db:create-tables     # Initialize schema
-task db:recreate          # Reset database
-task psql                 # Start psql session
+task db:recreate         # Recreate database from scratch
+task psql               # Start interactive psql session
+```
+
+### Demo and Examples
+
+```bash
+task demo:mock           # Run example ingestion with mock embedder
+task demo:openai         # Run example ingestion with OpenAI embedder
 ```
 
 ## Development Workflow
 
 1. **Starting Development**
    - Start database: `task db:up`
-   - Verify setup: `task db:test`
+   - Verify setup: `task verify-deps`
 
 2. **Making Changes**
    - Write code
@@ -223,9 +268,10 @@ task psql                 # Start psql session
    - Recreate database: `task db:recreate`
 
 4. **Testing Changes**
-   - Add tests in `tests/`
-   - Run specific test file: `pytest tests/path/to/test.py`
-   - Check coverage: `task coverage:py`
+   - Run all tests: `task test:all`
+   - Run specific test: `task test:name -- test_name`
+   - Run integration tests: `task test:integration`
+   - Check coverage: `task test:coverage`
 
 ## Troubleshooting
 
@@ -243,8 +289,9 @@ task psql                 # Start psql session
   ```
 
 ### Testing Issues
-- Run with verbose output: `pytest -vv`
-- Debug specific test: `pytest tests/path/to/test.py -k test_name -s`
+- Run with verbose output: `task test:name -- -v test_name`
+- Run specific test file: `task test:name -- "test_file.py"`
+- Debug specific test: `task test:name -- -s test_name`
 
 ## Best Practices
 
@@ -267,7 +314,6 @@ task psql                 # Start psql session
    - Update docstrings
    - Keep README.md current
    - Document complex algorithms
-
 ```
 
 ### project_structure.md
@@ -695,126 +741,168 @@ def teardown_module(module):
 
 ```
 
-#### tests/db/
+#### tests/chunking/
 
-##### test_chunking.py
+##### test_line_chunker.py
 
 ```python
 """Test text chunking utilities."""
 
 import pytest
 
-from rag.db.chunking import chunk_text
+from rag.chunking import LineChunker
+from rag.model import File
 
 
-def test_basic_chunking():
+@pytest.fixture
+def chunker():
+    """Create a line chunker instance."""
+    return LineChunker()
+
+
+@pytest.fixture
+def sample_file():
+    """Create a sample file for testing."""
+    return File(
+        name="test.txt",
+        path="/path/to/test.txt",
+        crc="abcdef123456",
+        content="\n".join([f"Line {i}" for i in range(10)]),
+        meta_data={"type": "test"}
+    )
+
+
+def test_basic_chunking(chunker, sample_file):
     """Test basic text chunking with default parameters."""
-    # Create test text with 10 lines
-    text = "\n".join([f"Line {i}" for i in range(10)])
-
     # Default chunk_size=500, overlap=50 should return single chunk
-    chunks = chunk_text(text)
+    chunks = chunker.chunk_text(sample_file)
     assert len(chunks) == 1
-    assert chunks[0] == text
+    assert chunks[0].content == sample_file.content
+    assert chunks[0].index == 0
 
 
-def test_custom_chunk_size():
+def test_custom_chunk_size(chunker, sample_file):
     """Test chunking with custom chunk size."""
-    # Create test text with 10 lines
-    lines = [f"Line {i}" for i in range(10)]
-    text = "\n".join(lines)
-
     # Set chunk_size to 4 lines, overlap to 1
-    chunks = chunk_text(text, chunk_size=4, overlap=1)
+    chunker = LineChunker(chunk_size=4, overlap=1)
+    chunks = chunker.chunk_text(sample_file)
 
-    # Expected chunks with overlap:
-    # Chunk 1: lines 0-3
-    # Chunk 2: lines 3-6
-    # Chunk 3: lines 6-9
     assert len(chunks) == 3
-
     # Verify first chunk
-    assert chunks[0] == "\n".join(["Line 0", "Line 1", "Line 2", "Line 3"])
+    assert chunks[0].content == "\n".join(["Line 0", "Line 1", "Line 2", "Line 3"])
+    assert chunks[0].index == 0
 
     # Verify middle chunk has overlap
-    assert chunks[1] == "\n".join(["Line 3", "Line 4", "Line 5", "Line 6"])
+    assert chunks[1].content == "\n".join(["Line 3", "Line 4", "Line 5", "Line 6"])
+    assert chunks[1].index == 1
 
     # Verify last chunk
-    assert chunks[2] == "\n".join(["Line 6", "Line 7", "Line 8", "Line 9"])
+    assert chunks[2].content == "\n".join(["Line 6", "Line 7", "Line 8", "Line 9"])
+    assert chunks[2].index == 2
 
 
-def test_empty_text():
+def test_empty_text(chunker):
     """Test chunking empty text."""
-    chunks = chunk_text("")
+    empty_file = File(
+        name="empty.txt",
+        path="/path/to/empty.txt",
+        crc="empty123",
+        content="",
+        meta_data={}
+    )
+    chunks = chunker.chunk_text(empty_file)
     assert len(chunks) == 1
-    assert chunks[0] == ""
+    assert chunks[0].content == ""
 
 
-def test_whitespace_text():
+def test_whitespace_text(chunker):
     """Test chunking whitespace text."""
-    chunks = chunk_text("   \n  \n  ")
+    whitespace_file = File(
+        name="whitespace.txt",
+        path="/path/to/whitespace.txt",
+        crc="space123",
+        content="   \n  \n  ",
+        meta_data={}
+    )
+    chunks = chunker.chunk_text(whitespace_file)
     assert len(chunks) == 1
-    assert chunks[0] == "   \n  \n  "
+    assert chunks[0].content == "   \n  \n  "
 
 
-def test_single_line():
+def test_single_line(chunker):
     """Test chunking single line of text."""
-    text = "Single line"
-    chunks = chunk_text(text)
+    single_line_file = File(
+        name="single.txt",
+        path="/path/to/single.txt",
+        crc="single123",
+        content="Single line",
+        meta_data={}
+    )
+    chunks = chunker.chunk_text(single_line_file)
     assert len(chunks) == 1
-    assert chunks[0] == text
+    assert chunks[0].content == "Single line"
 
 
-def test_text_smaller_than_chunk():
+def test_text_smaller_than_chunk(chunker):
     """Test when text is smaller than chunk size."""
-    text = "\n".join([f"Line {i}" for i in range(5)])
-    chunks = chunk_text(
-        text, chunk_size=10, overlap=5
-    )  # Make sure overlap < chunk_size
+    small_file = File(
+        name="small.txt",
+        path="/path/to/small.txt",
+        crc="small123",
+        content="\n".join([f"Line {i}" for i in range(5)]),
+        meta_data={}
+    )
+    chunker = LineChunker(chunk_size=10, overlap=5)
+    chunks = chunker.chunk_text(small_file)
     assert len(chunks) == 1
-    assert chunks[0] == text
+    assert chunks[0].content == small_file.content
 
 
-def test_no_overlap():
+def test_no_overlap(chunker):
     """Test chunking with no overlap."""
-    # Create test text with 6 lines
-    lines = [f"Line {i}" for i in range(6)]
-    text = "\n".join(lines)
+    file = File(
+        name="test.txt",
+        path="/path/to/test.txt",
+        crc="test123",
+        content="\n".join([f"Line {i}" for i in range(6)]),
+        meta_data={}
+    )
+    chunker = LineChunker(chunk_size=2, overlap=0)
+    chunks = chunker.chunk_text(file)
 
-    # Set chunk_size to 2 lines, no overlap
-    chunks = chunk_text(text, chunk_size=2, overlap=0)
-
-    # Expected chunks:
-    # Chunk 1: lines 0-1
-    # Chunk 2: lines 2-3
-    # Chunk 3: lines 4-5
     assert len(chunks) == 3
-    assert chunks[0] == "\n".join(["Line 0", "Line 1"])
-    assert chunks[1] == "\n".join(["Line 2", "Line 3"])
-    assert chunks[2] == "\n".join(["Line 4", "Line 5"])
+    assert chunks[0].content == "\n".join(["Line 0", "Line 1"])
+    assert chunks[1].content == "\n".join(["Line 2", "Line 3"])
+    assert chunks[2].content == "\n".join(["Line 4", "Line 5"])
 
 
-def test_invalid_chunk_size():
+def test_invalid_chunk_size(chunker, sample_file):
     """Test invalid chunk size."""
     with pytest.raises(ValueError, match="chunk_size must be positive"):
-        chunk_text("test", chunk_size=0)
+        chunker = LineChunker(chunk_size=0)
+        chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="chunk_size must be positive"):
-        chunk_text("test", chunk_size=-1)
+        chunker = LineChunker(chunk_size=-1)
+        chunker.chunk_text(sample_file)
 
 
-def test_invalid_overlap():
+def test_invalid_overlap(chunker, sample_file):
     """Test invalid overlap size."""
     with pytest.raises(ValueError, match="overlap must be non-negative"):
-        chunk_text("test", chunk_size=2, overlap=-1)
+        chunker = LineChunker(chunk_size=2, overlap=-1)
+        chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
-        chunk_text("test", chunk_size=2, overlap=2)
+        chunker = LineChunker(chunk_size=2, overlap=2)
+        chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
-        chunk_text("test", chunk_size=2, overlap=3)
-
+        chunker = LineChunker(chunk_size=2, overlap=3)
+        chunker.chunk_text(sample_file)
 ```
+
+#### tests/db/
 
 ##### test_db_file_handler.py
 
@@ -1223,7 +1311,7 @@ DB_NAME = os.getenv("POSTGRES_DB", "vectordb")
 
 
 # Database URLs
-def get_db_url(dbname: str = "vector_db") -> str:
+def get_db_url(dbname: str = "vectordb") -> str:
     """Get database URL with optional database name override."""
     db = dbname or DB_NAME
     return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{db}"
@@ -1245,6 +1333,45 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
 # Test configuration
 TEST_DB_NAME = "vectordb_test"
 TEST_DB_URL = get_db_url(TEST_DB_NAME)
+
+```
+
+##### model.py
+
+```python
+"""File and Chunk models using Pydantic."""
+
+from typing import Dict
+
+from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
+
+
+class File(BaseModel):
+    """File model."""
+
+    name: str = Field(..., min_length=1, max_length=80)
+    path: str = Field(..., min_length=1, max_length=255)
+    crc: str
+    content: str
+    meta_data: Dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def size(self) -> int:
+        """Get the actual size of the chunk content."""
+        return len(self.content)
+
+
+class Chunk(BaseModel):
+    """Chunk model."""
+
+    target_size: PositiveInt
+    content: str
+    index: NonNegativeInt
+
+    @property
+    def size(self) -> int:
+        """Get the actual size of the chunk content."""
+        return len(self.content)
 
 ```
 
@@ -1271,6 +1398,8 @@ __all__ = ["Embedder", "OpenAIEmbedder", "MockEmbedder"]
 from abc import ABC, abstractmethod
 from typing import List
 
+from rag.model import Chunk
+
 
 class Embedder(ABC):
     """Base class for all embedders."""
@@ -1295,7 +1424,7 @@ class Embedder(ABC):
         pass
 
     @abstractmethod
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
         """Embed a list of texts.
 
         Args:
@@ -1317,6 +1446,7 @@ import random
 from typing import List
 
 from .base import Embedder
+from ..model import Chunk
 
 
 class MockEmbedder(Embedder):
@@ -1339,7 +1469,7 @@ class MockEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
         """Generate random embeddings for testing.
 
         Args:
@@ -1357,12 +1487,13 @@ class MockEmbedder(Embedder):
 ```python
 """OpenAI embedder implementation."""
 
-from typing import List
+from typing import List, Optional
 
 import openai
 
 from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
 from .base import Embedder
+from ..model import Chunk
 
 
 class OpenAIEmbedder(Embedder):
@@ -1372,7 +1503,7 @@ class OpenAIEmbedder(Embedder):
         self,
         model_name: str = OPENAI_MODEL,
         dimension: int = EMBEDDING_DIM,
-        api_key: str = OPENAI_API_KEY,
+        api_key: Optional[str] = OPENAI_API_KEY,
         batch_size: int = 16,
     ):
         """Initialize OpenAI embedder.
@@ -1382,6 +1513,9 @@ class OpenAIEmbedder(Embedder):
             dimension: Dimension of the embeddings
             api_key: OpenAI API key
             batch_size: Number of texts to embed in one batch
+
+        Raises:
+            ValueError: If no API key is provided
         """
         super().__init__(model_name, dimension)
         if not api_key:
@@ -1397,7 +1531,7 @@ class OpenAIEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
         """Embed a list of texts using OpenAI's API.
 
         Args:
@@ -1421,6 +1555,116 @@ class OpenAIEmbedder(Embedder):
 
 ##### src/rag/chunking/
 
+###### __init__.py
+
+```python
+"""Tools to break files into chunks."""
+
+from .line_chunker import LineChunker
+
+```
+
+###### base_chunker.py
+
+```python
+"""Base chunker interface."""
+
+from abc import ABC, abstractmethod
+from typing import List
+
+from ..model import Chunk, File
+
+
+class Chunker(ABC):
+    """Abstract base class for text chunking implementations."""
+
+    @abstractmethod
+    def chunk_text(self, file: File) -> List[Chunk]:
+        """Split text into overlapping chunks.
+
+        Args:
+            file: File to split
+            chunk_size: Number of lines per chunk
+            overlap: Number of lines to overlap between chunks
+
+        Returns:
+            List[Chunk]: List of text chunks
+        """
+        pass
+
+
+```
+
+###### line_chunker.py
+
+```python
+from typing import List
+
+from .base_chunker import Chunker
+from ..model import Chunk, File
+
+from ..config import CHUNK_OVERLAP, CHUNK_SIZE
+
+
+class LineChunker(Chunker):
+    """Chunker that splits text based on lines."""
+
+    def __init__(self, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+        # Validate inputs
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
+        if overlap < 0:
+            raise ValueError("overlap must be non-negative")
+        if overlap >= chunk_size:
+            raise ValueError("overlap must be less than chunk_size")
+
+    def chunk_text(self, file: File) -> List[Chunk]:
+        """Split text into overlapping chunks.
+
+        Args:
+            file: File to split
+
+
+        Returns:
+            List[Chunk]: List of text chunks
+        """
+
+        lines = file.content.splitlines()
+        if not lines:
+            return [Chunk(target_size=self.chunk_size, content=file.content, index=0)]
+
+        chunks = []
+        start = 0
+        chunk_index = 0
+
+        while start < len(lines):
+            # Calculate end of current chunk
+            end = min(start + self.chunk_size, len(lines))
+
+            # Join lines for this chunk
+            chunk_content = "\n".join(lines[start:end])
+            chunks.append(
+                Chunk(
+                    target_size=self.chunk_size,
+                    content=chunk_content,
+                    index=chunk_index
+                )
+            )
+
+            # If we've reached the end, break
+            if end == len(lines):
+                break
+
+            # Move start position, accounting for overlap
+            start = end - self.overlap
+            chunk_index += 1
+
+        return chunks
+
+```
+
 ##### src/rag/db/
 
 ###### __init__.py
@@ -1436,85 +1680,32 @@ __all__ = ["Project", "File", "Chunk", "ensure_vector_dimension", "DBFileHandler
 
 ```
 
-###### chunking.py
-
-```python
-"""Text chunking utilities."""
-
-from typing import List
-
-
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
-    """Split text into overlapping chunks.
-
-    Args:
-        text: Text to split
-        chunk_size: Number of lines per chunk
-        overlap: Number of lines to overlap between chunks
-
-    Returns:
-        List[str]: List of text chunks
-    """
-    # Validate inputs
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be positive")
-    if overlap < 0:
-        raise ValueError("overlap must be non-negative")
-    if overlap >= chunk_size:
-        raise ValueError("overlap must be less than chunk_size")
-
-    lines = text.splitlines()
-    if not lines:
-        return [text]  # Return original text if empty or just whitespace
-
-    chunks = []
-    start = 0
-
-    while start < len(lines):
-        # Calculate end of current chunk
-        end = min(start + chunk_size, len(lines))
-
-        # Join lines for this chunk
-        chunk = "\n".join(lines[start:end])
-        chunks.append(chunk)
-
-        # If we've reached the end, break
-        if end == len(lines):
-            break
-
-        # Move start position, accounting for overlap
-        start = end - overlap
-
-    return chunks
-
-```
-
 ###### db_file_handler.py
 
 ```python
 """Database file handler for managing projects and files."""
 
-import hashlib
-import os
+
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
-from ..config import CHUNK_OVERLAP, CHUNK_SIZE, DB_URL
-from ..embeddings import Embedder
-from .chunking import chunk_text
+from ..chunking import LineChunker
+from ..config import DB_URL
+
+from ..embeddings import Embedder, OpenAIEmbedder
 from .dimension_utils import ensure_vector_dimension
 from .models import Base, Chunk, File, Project
-
+from rag.model import File as FileModel
 
 class DBFileHandler:
     """Handler for managing files in the database."""
 
     def __init__(
-        self, db_url: Optional[str] = None, embedder: Optional[Embedder] = None
+        self, embedder: Embedder = OpenAIEmbedder(), db_url: Optional[str] = DB_URL
     ):
         """Initialize the handler.
 
@@ -1522,9 +1713,10 @@ class DBFileHandler:
             db_url: Database URL, defaults to config.DB_URL
             embedder: Embedder instance for generating embeddings
         """
-        self.engine = create_engine(db_url or DB_URL)
+        self.engine = create_engine(db_url)
         self.embedder = embedder
         self.Session = sessionmaker(bind=self.engine)
+        self.chunker = LineChunker()
 
         # Make models accessible
         self.Project = Project
@@ -1551,7 +1743,9 @@ class DBFileHandler:
         finally:
             session.close()
 
-    def get_or_create_project(self, name: str, description: str = None) -> Project:
+    def get_or_create_project(
+        self, name: str, description: Optional[str] = None
+    ) -> Project:
         """Get an existing project by name or create a new one.
 
         Args:
@@ -1591,7 +1785,7 @@ class DBFileHandler:
             )
             return project_copy
 
-    def create_project(self, name: str, description: str = None) -> Project:
+    def create_project(self, name: str, description: Optional[str] = None) -> Project:
         """Create a new project.
 
         Args:
@@ -1663,78 +1857,55 @@ class DBFileHandler:
     def add_file(
         self,
         project_id: int,
-        file_path: str,
-        chunk_size: Optional[int] = None,
-        overlap: Optional[int] = None,
-    ) -> Optional[File]:
+        file: FileModel
+    ) -> bool:
         """Add a file to a project.
 
         Args:
             project_id: ID of the project
-            file_path: Path to the file
-            chunk_size: Number of lines per chunk, defaults to config.CHUNK_SIZE
-            overlap: Number of lines to overlap between chunks, defaults to config.CHUNK_OVERLAP
 
         Returns:
-            File: Created file object if successful, None if project not found
+            bool: Was the file created or not
         """
-        if not self.embedder:
-            raise ValueError("Embedder must be provided to add files")
 
-        chunk_size = chunk_size or CHUNK_SIZE
-        overlap = overlap or CHUNK_OVERLAP
 
-        with self.session_scope() as session:
+
+        with (self.session_scope() as session):
             # Verify project exists
             project = session.get(Project, project_id)
+
             if not project:
-                return None
+                # TODO turn this into an exception
+                return False
 
-            # Read file and compute metadata
-            with open(file_path, "r") as f:
-                content = f.read()
-
-            file_size = os.path.getsize(file_path)
-            crc = hashlib.md5(content.encode()).hexdigest()
-            filename = os.path.basename(file_path)
+            # TODO Check to see if the file already exists with the same name, path, crc and project id in the DB,
+            # if it does, return false. We won't reindex files that already exist.
 
             # Create file record
             file = File(
                 project_id=project_id,
-                filename=filename,
-                file_path=file_path,
-                crc=crc,
-                file_size=file_size,
+                filename=file.name,
+                file_path=file.path,
+                crc=file.crc,
+                file_size=file.size,
             )
             session.add(file)
             session.flush()  # Get file.id
 
             # Create chunks
-            chunks = chunk_text(content, chunk_size, overlap)
+            chunks = self.chunker.chunk_text(file)
             embeddings = self.embedder.embed_texts(chunks)
 
-            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for (chunk, embedding) in zip(chunks, embeddings):
                 chunk_obj = Chunk(
-                    file_id=file.id, content=chunk, embedding=embedding, chunk_index=idx
+                    file_id=file.id, content=chunk.content, embedding=embedding, chunk_index=chunk.chunk_index
                 )
                 session.add(chunk_obj)
 
-            # Get a copy of the file data
-            file_data = {
-                "id": file.id,
-                "project_id": file.project_id,
-                "filename": file.filename,
-                "file_path": file.file_path,
-                "crc": file.crc,
-                "file_size": file.file_size,
-                "created_at": file.created_at,
-            }
-
             # Commit to ensure the data is saved
             session.commit()
+            return True
 
-            # Return a new instance with the data
-            return File(**file_data)
 
     def remove_file(self, project_id: int, file_id: int) -> bool:
         """Remove a file from a project.
@@ -1809,18 +1980,22 @@ def ensure_vector_dimension(engine, desired_dim: int):
 
 from datetime import datetime
 from datetime import timezone as tz
+from typing import List, Optional
 
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector  # type: ignore
 from sqlalchemy import (BigInteger, Column, DateTime, ForeignKey, Integer,
                         String, Text, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-# Use the new SQLAlchemy 2.0 style declarative base
-Base = declarative_base()
-Alias = Base
 
-def utc_now():
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    pass
+
+
+def utc_now() -> datetime:
     """Get current UTC datetime."""
     return datetime.now(tz.utc)
 
@@ -1831,13 +2006,19 @@ class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("name", name="uix_project_name"),)
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False, unique=True)
-    description = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=utc_now)
-    updated_at = Column(DateTime(timezone=True), default=utc_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
-    files = relationship("File", back_populates="project", cascade="all, delete-orphan")
+    files: Mapped[List["File"]] = relationship(
+        "File", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class File(Base):
@@ -1845,18 +2026,28 @@ class File(Base):
 
     __tablename__ = "files"
 
-    id = Column(Integer, primary_key=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"))
-    filename = Column(String(255), nullable=False)
-    file_path = Column(String(1024), nullable=False)
-    crc = Column(String(32), nullable=False)
-    file_size = Column(BigInteger, nullable=False)
-    last_updated = Column(DateTime(timezone=True), default=utc_now)
-    last_ingested = Column(DateTime(timezone=True), default=utc_now)
-    created_at = Column(DateTime(timezone=True), default=utc_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    crc: Mapped[str] = mapped_column(String(32), nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    last_ingested: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
-    project = relationship("Project", back_populates="files")
-    chunks = relationship("Chunk", back_populates="file", cascade="all, delete-orphan")
+    project: Mapped["Project"] = relationship("Project", back_populates="files")
+    chunks: Mapped[List["Chunk"]] = relationship(
+        "Chunk", back_populates="file", cascade="all, delete-orphan"
+    )
 
 
 class Chunk(Base):
@@ -1864,15 +2055,19 @@ class Chunk(Base):
 
     __tablename__ = "chunks"
 
-    id = Column(Integer, primary_key=True)
-    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"))
-    content = Column(Text, nullable=False)
-    embedding = Column(Vector(1536))  # Default to OpenAI's dimension
-    chunk_index = Column(Integer, nullable=False)
-    chunk_metadata = Column(JSONB, default={})
-    created_at = Column(DateTime(timezone=True), default=utc_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("files.id", ondelete="CASCADE")
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[List[float]] = mapped_column(Vector(1536))  # type: ignore
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_metadata: Mapped[dict] = mapped_column(JSONB, default={})
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
-    file = relationship("File", back_populates="chunks")
+    file: Mapped["File"] = relationship("File", back_populates="chunks")
 
 ```
 
@@ -1950,6 +2145,10 @@ def ingest_file(file_path: str, embedder_type: str = "mock"):
 
     # Add file to project
     file = handler.add_file(project.id, file_path)
+    if file is None:
+        logger.error("Failed to add file")
+        return
+
     logger.info(f"Added file: {file.filename} (ID: {file.id})")
 
     # Print chunk count

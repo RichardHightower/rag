@@ -5,6 +5,7 @@ from typing import List, Optional
 import openai
 
 from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
+from ..model import Chunk
 from .base import Embedder
 
 
@@ -43,18 +44,19 @@ class OpenAIEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, chunks: List[Chunk]) -> List[List[float]]:
         """Embed a list of texts using OpenAI's API.
 
         Args:
-            texts: List of texts to embed
+            chunks: List of text chunks to embed
 
         Returns:
             List[List[float]]: List of embeddings, one per text
         """
         embeddings = []
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i : i + self.batch_size]
+        for i in range(0, len(chunks), self.batch_size):
+            batch = [chunk.content for chunk in chunks[i : i + self.batch_size]]
+
             response = self.client.embeddings.create(
                 model=self.model_name,
                 input=batch,

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from rag.config import EMBEDDING_DIM, OPENAI_MODEL
+from rag.db import Chunk
 from rag.embeddings.openai_embedder import OpenAIEmbedder
 
 
@@ -54,7 +55,8 @@ def test_embed_texts_single_batch(mock_openai):
 
     embedder = OpenAIEmbedder(api_key="test_key", dimension=3, batch_size=5)
     texts = ["Hello", "World"]
-    embeddings = embedder.embed_texts(texts)
+    chunks = [Chunk(content=text) for text in texts]
+    embeddings = embedder.embed_texts(chunks)
 
     # Verify the results
     assert len(embeddings) == 2
@@ -82,7 +84,7 @@ def test_embed_texts_multiple_batches(mock_openai):
 
     embedder = OpenAIEmbedder(api_key="test_key", dimension=2, batch_size=2)
     texts = ["Text1", "Text2", "Text3"]
-    embeddings = embedder.embed_texts(texts)
+    embeddings = embedder.embed_texts([Chunk(content=text) for text in texts])
 
     # Verify the results
     assert len(embeddings) == 3

@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import List
 
+from rag.model import Chunk
+
 
 class Embedder(ABC):
     """Base class for all embedders."""
@@ -27,7 +29,7 @@ class Embedder(ABC):
         pass
 
     @abstractmethod
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
         """Embed a list of texts.
 
         Args:
