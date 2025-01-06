@@ -12,16 +12,16 @@ from sqlalchemy.exc import IntegrityError
 from rag.config import get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.embeddings.mock_embedder import MockEmbedder
+from rag.model import File
 
 
 @pytest.fixture
 def sample_file():
     """Create a temporary sample file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(
-            "This is a test file.\nIt has multiple lines.\nEach line will be chunked."
-        )
-        return Path(f.name)
+    content = "This is a test file.\nIt has multiple lines.\nEach line will be chunked."
+    return File(
+        name="test.txt", path="/path/to/test.txt", crc="test123", content=content
+    )
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def test_file_ingestion(test_db, sample_file, unique_name):
     assert project.name == unique_name
 
     # Add file
-    file = handler.add_file(project.id, str(sample_file))
+    file = handler.add_file(project.id, sample_file)
     assert file is not None
 
     # Verify chunks were created

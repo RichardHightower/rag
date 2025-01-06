@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Example script demonstrating file ingestion and embedding."""
 
+import hashlib
 import logging
 import os
 import sys
@@ -13,6 +14,7 @@ from rag.db.db_file_handler import DBFileHandler
 from rag.db.models import Base
 from rag.embeddings.mock_embedder import MockEmbedder
 from rag.embeddings.openai_embedder import OpenAIEmbedder
+from rag.model import File as FileModel
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +46,28 @@ def ensure_tables_exist():
     logger.info("Database tables created")
 
 
+def create_file_model(file_path: str) -> FileModel:
+    """Create a FileModel instance from a file path.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        FileModel instance
+    """
+    path = Path(file_path)
+    content = path.read_text()
+    crc = hashlib.md5(content.encode()).hexdigest()
+
+    return FileModel(
+        name=path.name,
+        path=str(path),
+        crc=crc,
+        content=content,
+        meta_data={"type": path.suffix.lstrip(".")},
+    )
+
+
 def ingest_file(file_path: str, embedder_type: str = "mock"):
     """Ingest a file into the database.
 
@@ -59,24 +83,31 @@ def ingest_file(file_path: str, embedder_type: str = "mock"):
     logger.info(f"Using {embedder.__class__.__name__}")
 
     # Create DB handler
-    handler = DBFileHandler(get_db_url(), embedder)
+    handler = DBFileHandler(embedder=embedder)
 
     # Create or get project
     project = handler.get_or_create_project("Demo Project", "Example file ingestion")
     logger.info(f"Using project: {project.name} (ID: {project.id})")
 
+    # Create FileModel
+    file_model = create_file_model(file_path)
+
     # Add file to project
-    file = handler.add_file(project.id, file_path)
-    if file is None:
+    success = handler.add_file(project.id, file_model)
+    if not success:
         logger.error("Failed to add file")
         return
 
-    logger.info(f"Added file: {file.filename} (ID: {file.id})")
+    logger.info(f"Added file: {file_model.name}")
 
     # Print chunk count
     with handler.session_scope() as session:
-        chunk_count = session.query(handler.Chunk).filter_by(file_id=file.id).count()
-        logger.info(f"Created {chunk_count} chunks with embeddings")
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        if file:
+            chunk_count = (
+                session.query(handler.Chunk).filter_by(file_id=file.id).count()
+            )
+            logger.info(f"Created {chunk_count} chunks with embeddings")
 
 
 def main():

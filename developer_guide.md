@@ -26,6 +26,7 @@ task setup-dev
 This command will:
 - Create a virtual environment
 - Install development dependencies
+- Install the package in editable mode with dev dependencies
 - Set up pre-commit hooks
 
 3. Configure environment variables:
@@ -49,7 +50,7 @@ cp .env.example .env
 
 ### Machine Learning
 - **OpenAI**: For generating embeddings (optional)
-- **Hugging Face Transformers**: Alternative for generating embeddings
+- **Sentence Transformers**: Alternative for generating embeddings
 
 ### Testing
 - **pytest**: Testing framework
@@ -58,80 +59,124 @@ cp .env.example .env
 ### Development Tools
 - **black**: Code formatting
 - **mypy**: Static type checking
-- **ruff**: Fast Python linter
-
-## Docker Management
-
-### Database Container
-
-Start the database:
-```bash
-task db:up
-```
-
-Verify database setup:
-```bash
-task db:test
-```
-
-Other database commands:
-```bash
-task db:down            # Stop database
-task db:recreate        # Reset database
-task db:psql           # Open PostgreSQL console
-task db:list-tables    # List all tables
-```
+- **isort**: Import sorting
 
 ## Task Commands Reference
 
-### Development Workflow
+### Development Setup and Maintenance
 
 ```bash
-task setup-dev         # Initial dev environment setup
-task verify-deps       # Verify dependencies are correctly installed
-task freeze           # Update requirements.txt
-```
-
-### Code Quality
-
-```bash
-task format           # Format code with black
-task lint            # Run all linters
-task typecheck       # Run mypy type checking
+task setup-dev             # Initial dev environment setup (venv, dependencies)
+task verify-deps           # Verify dependencies are correctly installed
+task freeze               # Generate requirements.txt with top-level dependencies
 ```
 
 ### Testing
 
+The project provides several test commands for different testing scenarios:
+
 ```bash
-task test:all         # Run all tests
-task test:integration # Run integration tests only
-task test:py         # Run Python unit tests
-task coverage:py     # Run tests with coverage report
+task test:all             # Run all Python tests across all test directories
+                         # This is the most comprehensive test command
+                         # Use this to verify everything works before commits
+
+task test:name -- <pattern>  # Run tests matching a specific pattern
+                            # Examples:
+                            # Run a specific test function:
+                            #   task test:name -- test_basic_chunking
+                            # Run all tests in a module:
+                            #   task test:name -- test_line_chunker
+                            # Run tests matching a pattern:
+                            #   task test:name -- "chunker.*basic"
+
+task test:integration    # Run only integration tests (in tests/integration/)
+                        # These tests interact with the database
+                        # Will wait 5 seconds for DB to start before running
+                        # Use -v flag for verbose output
+
+task test:coverage      # Run tests with coverage reporting
+                        # Shows line-by-line coverage information
+                        # Reports missing coverage in the terminal
+                        # Essential to run before submitting PRs
 ```
 
-### Demo and Examples
+### Pre-Commit Requirements
+
+Before committing code or submitting pull requests, you should run:
+
+1. `task lint` - This runs:
+   - Code formatting (black, isort)
+   - Type checking (mypy)
+   - All tests (test:all)
+   This ensures your code meets style guidelines and passes all tests.
+
+2. `task test:coverage` - This checks test coverage and reports:
+   - Percentage of code covered by tests
+   - Which lines are not covered
+   - Helps identify areas needing additional tests
+   
+Example pre-commit workflow:
+```bash
+# Format and verify code
+task lint
+
+# Check test coverage
+task test:coverage
+
+# If all checks pass, commit your changes
+git commit -m "Your commit message"
+```
+
+### Testing Best Practices
+
+1. **Running Specific Tests**
+   - Use `test:name` for focused testing during development
+   - Always run `test:all` before committing
+   - Run `test:integration` when changing database interactions
+
+2. **Coverage Requirements**
+   - Aim for high test coverage (>80%)
+   - Run `test:coverage` to identify gaps
+   - Write tests for any uncovered code
+
+3. **Integration Testing**
+   - Database should be running (`task db:up`)
+   - Uses a separate test database
+   - Automatically handles test data cleanup
+
+### Code Quality
 
 ```bash
-task demo:mock        # Run demo with mock embedder
-task demo:openai      # Run demo with OpenAI embedder
+task format              # Format code with black and isort
+task typecheck          # Run mypy type checking
+task lint               # Run all code quality checks (format, typecheck, test:all)
+```
+
+### Documentation
+
+```bash
+task documentation:create-project-markdown  # Create Markdown for LLMs
 ```
 
 ### Database Management
 
 ```bash
-task db:build              # Build custom Postgres image
-task db:up                 # Start database
-task db:down              # Stop database
-task db:create-tables     # Initialize schema
-task db:recreate          # Reset database
-task psql                 # Start psql session
+task db:recreate         # Recreate database from scratch
+task psql               # Start interactive psql session
+```
+
+### Demo and Examples
+
+```bash
+task demo:mock           # Run example ingestion with mock embedder
+task demo:openai         # Run example ingestion with OpenAI embedder
 ```
 
 ## Development Workflow
 
 1. **Starting Development**
    - Start database: `task db:up`
-   - Verify setup: `task db:test`
+   - Verify setup: `task verify-deps`
 
 2. **Making Changes**
    - Write code
@@ -145,9 +190,10 @@ task psql                 # Start psql session
    - Recreate database: `task db:recreate`
 
 4. **Testing Changes**
-   - Add tests in `tests/`
-   - Run specific test file: `pytest tests/path/to/test.py`
-   - Check coverage: `task coverage:py`
+   - Run all tests: `task test:all`
+   - Run specific test: `task test:name -- test_name`
+   - Run integration tests: `task test:integration`
+   - Check coverage: `task test:coverage`
 
 ## Troubleshooting
 
@@ -165,8 +211,9 @@ task psql                 # Start psql session
   ```
 
 ### Testing Issues
-- Run with verbose output: `pytest -vv`
-- Debug specific test: `pytest tests/path/to/test.py -k test_name -s`
+- Run with verbose output: `task test:name -- -v test_name`
+- Run specific test file: `task test:name -- "test_file.py"`
+- Debug specific test: `task test:name -- -s test_name`
 
 ## Best Practices
 

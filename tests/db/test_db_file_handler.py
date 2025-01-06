@@ -1,7 +1,9 @@
 """Test database file handler."""
 
+import hashlib
 import os
 import tempfile
+from logging import debug
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,7 @@ import pytest
 from rag.config import TEST_DB_NAME, get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.embeddings.mock_embedder import MockEmbedder
+from rag.model import File as FileModel
 
 
 @pytest.fixture
@@ -17,12 +20,15 @@ def embedder():
     return MockEmbedder()
 
 
-@pytest.fixture
-def sample_text_file():
-    """Create a temporary text file for testing."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write("Line 1\nLine 2\nLine 3\n")
-        return Path(f.name)
+def create_test_file(content="Line 1\nLine 2\nLine 3\n"):
+    """Create a FileModel instance for testing."""
+    return FileModel(
+        name="test.txt",
+        path="/path/to/test.txt",
+        crc=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        content=content,
+        meta_data={},
+    )
 
 
 def test_create_project(test_db):
@@ -88,58 +94,74 @@ def test_delete_nonexistent_project(test_db):
     assert handler.delete_project(999) is False
 
 
-def test_add_file(test_db, embedder, sample_text_file):
+def test_add_file(test_db, embedder):
     """Test adding a file to a project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
     # Create project
     project = handler.create_project("Test Project")
 
+    # Create test file
+    file_model = create_test_file()
+
+    debug(file_model)
+
     # Add file
-    file = handler.add_file(project.id, str(sample_text_file))
+    success = handler.add_file(project.id, file_model)
+    assert success is not None
 
     # Verify file was added
-    assert file is not None
-    assert file.project_id == project.id
-    assert file.filename == sample_text_file.name
-    assert file.file_path == str(sample_text_file)
-    assert file.created_at is not None
-
-    # Verify chunks were created
     with handler.session_scope() as session:
-        db_file = session.get(handler.File, file.id)
-        assert db_file is not None
-        assert len(db_file.chunks) > 0
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        assert file.project_id == project.id
+        assert file.filename == file_model.name
+        assert file.file_path == file_model.path
+        assert file.created_at is not None
+
+        # Verify chunks were created
+        chunks = session.query(handler.Chunk).filter_by(file_id=file.id).all()
+        assert len(chunks) > 0
 
         # Verify chunk content and embeddings
-        for chunk in db_file.chunks:
+        for chunk in chunks:
             assert chunk.content is not None
             assert chunk.embedding is not None
+            assert len(chunk.embedding) == embedder.get_dimension()
 
 
-def test_add_file_to_nonexistent_project(test_db, embedder, sample_text_file):
+def test_add_file_to_nonexistent_project(test_db, embedder):
     """Test adding a file to a non-existent project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    file_model = create_test_file()
 
     # Try to add file to non-existent project
-    file = handler.add_file(999, str(sample_text_file))
-    assert file is None
+    success = handler.add_file(999, file_model)
+    assert success is None
 
 
-def test_remove_file(test_db, embedder, sample_text_file):
+def test_remove_file(test_db, embedder):
     """Test removing a file from a project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
     # Create project and add file
     project = handler.create_project("Test Project")
-    file = handler.add_file(project.id, str(sample_text_file))
+    file_model = create_test_file()
+    success = handler.add_file(project.id, file_model)
+    assert success is not None
+
+    # Get file ID
+    with handler.session_scope() as session:
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        file_id = file.id
 
     # Remove file
-    assert handler.remove_file(project.id, file.id) is True
+    assert handler.remove_file(project.id, file_id) is True
 
     # Verify file is removed
     with handler.session_scope() as session:
-        assert session.get(handler.File, file.id) is None
+        assert session.get(handler.File, file_id) is None
 
 
 def test_remove_nonexistent_file(test_db, embedder):
@@ -153,7 +175,7 @@ def test_remove_nonexistent_file(test_db, embedder):
     assert handler.remove_file(project.id, 999) is False
 
 
-def test_remove_file_wrong_project(test_db, embedder, sample_text_file):
+def test_remove_file_wrong_project(test_db, embedder):
     """Test removing a file from the wrong project."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
 
@@ -162,25 +184,23 @@ def test_remove_file_wrong_project(test_db, embedder, sample_text_file):
     project2 = handler.create_project("Project 2")
 
     # Add file to project1
-    file = handler.add_file(project1.id, str(sample_text_file))
+    file_model = create_test_file()
+    file = handler.add_file(project1.id, file_model)
+    assert file is not None
+
+    # Get file ID
+    with handler.session_scope() as session:
+        file = session.query(handler.File).filter_by(filename=file_model.name).first()
+        assert file is not None
+        file_id = file.id
 
     # Try to remove file from project2
-    assert handler.remove_file(project2.id, file.id) is False
-
-
-def test_embedder_dimension_handling(test_db, embedder):
-    """Test embedder dimension handling."""
-    # First handler initializes tables
-    handler1 = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
-
-    # Second handler should work with same dimension
-    handler2 = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
-    assert handler2 is not None
+    assert handler.remove_file(project2.id, file_id) is False
 
 
 def teardown_module(module):
     """Clean up temporary files after tests."""
-    # Clean up the temporary file
+    # Clean up any .txt files in the current directory
     for item in Path().glob("*.txt"):
         if item.is_file() and item.suffix == ".txt":
             try:

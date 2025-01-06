@@ -1,17 +1,18 @@
 """Database file handler for managing projects and files."""
 
-import hashlib
-import os
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from ..config import CHUNK_OVERLAP, CHUNK_SIZE, DB_URL
-from ..embeddings import Embedder
-from .chunking import chunk_text
+from rag.model import Chunk as ChunkModel
+from rag.model import File as FileModel
+
+from ..chunking import LineChunker
+from ..config import DB_URL
+from ..embeddings import Embedder, OpenAIEmbedder
 from .dimension_utils import ensure_vector_dimension
 from .models import Base, Chunk, File, Project
 
@@ -19,18 +20,23 @@ from .models import Base, Chunk, File, Project
 class DBFileHandler:
     """Handler for managing files in the database."""
 
-    def __init__(
-        self, db_url: Optional[str] = None, embedder: Optional[Embedder] = None
-    ):
+    def __init__(self, db_url: str = DB_URL, embedder: Optional[Embedder] = None):
         """Initialize the handler.
 
         Args:
             db_url: Database URL, defaults to config.DB_URL
             embedder: Embedder instance for generating embeddings
+
+        Raises:
+            ValueError: If db_url is None
         """
-        self.engine = create_engine(db_url or DB_URL)
-        self.embedder = embedder
+        if db_url is None:
+            raise ValueError("Database URL must be provided")
+
+        self.engine = create_engine(db_url)
+        self.embedder = embedder or OpenAIEmbedder()
         self.Session = sessionmaker(bind=self.engine)
+        self.chunker = LineChunker()
 
         # Make models accessible
         self.Project = Project
@@ -41,8 +47,8 @@ class DBFileHandler:
         Base.metadata.create_all(self.engine)
 
         # Ensure vector dimension matches embedder if provided
-        if embedder:
-            ensure_vector_dimension(self.engine, embedder.get_dimension())
+        if self.embedder:
+            ensure_vector_dimension(self.engine, self.embedder.get_dimension())
 
     @contextmanager
     def session_scope(self):
@@ -168,66 +174,52 @@ class DBFileHandler:
                 return True
             return False
 
-    def add_file(
-        self,
-        project_id: int,
-        file_path: str,
-        chunk_size: Optional[int] = None,
-        overlap: Optional[int] = None,
-    ) -> Optional[File]:
+    def add_file(self, project_id: int, file_model: FileModel) -> Optional[File]:
         """Add a file to a project.
 
         Args:
             project_id: ID of the project
-            file_path: Path to the file
-            chunk_size: Number of lines per chunk, defaults to config.CHUNK_SIZE
-            overlap: Number of lines to overlap between chunks, defaults to config.CHUNK_OVERLAP
 
         Returns:
-            File: Created file object if successful, None if project not found
+            bool: Was the file created or not
         """
-        if not self.embedder:
-            raise ValueError("Embedder must be provided to add files")
-
-        chunk_size = chunk_size or CHUNK_SIZE
-        overlap = overlap or CHUNK_OVERLAP
 
         with self.session_scope() as session:
             # Verify project exists
             project = session.get(Project, project_id)
+
             if not project:
+                # TODO turn this into an exception
                 return None
 
-            # Read file and compute metadata
-            with open(file_path, "r") as f:
-                content = f.read()
-
-            file_size = os.path.getsize(file_path)
-            crc = hashlib.md5(content.encode()).hexdigest()
-            filename = os.path.basename(file_path)
+            # TODO Check to see if the file already exists with the same name, path, crc and project id in the DB,
+            # if it does, return false. We won't reindex files that already exist.
 
             # Create file record
             file = File(
                 project_id=project_id,
-                filename=filename,
-                file_path=file_path,
-                crc=crc,
-                file_size=file_size,
+                filename=file_model.name,
+                file_path=file_model.path,
+                crc=file_model.crc,
+                file_size=file_model.size,
             )
             session.add(file)
             session.flush()  # Get file.id
 
             # Create chunks
-            chunks = chunk_text(content, chunk_size, overlap)
+            chunks: List[ChunkModel] = self.chunker.chunk_text(file_model)
             embeddings = self.embedder.embed_texts(chunks)
 
-            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for chunk, embedding in zip(chunks, embeddings):
                 chunk_obj = Chunk(
-                    file_id=file.id, content=chunk, embedding=embedding, chunk_index=idx
+                    file_id=file.id,
+                    content=chunk.content,
+                    embedding=embedding,
+                    chunk_index=chunk.index,
                 )
                 session.add(chunk_obj)
 
-            # Get a copy of the file data
+                # Get a copy of the file data
             file_data = {
                 "id": file.id,
                 "project_id": file.project_id,

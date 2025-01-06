@@ -3,6 +3,7 @@
 import random
 from typing import List
 
+from ..model import Chunk
 from .base import Embedder
 
 
@@ -26,7 +27,7 @@ class MockEmbedder(Embedder):
         """
         return self.dimension
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[Chunk]) -> List[List[float]]:
         """Generate random embeddings for testing.
 
         Args:

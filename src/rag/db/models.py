@@ -54,7 +54,7 @@ class File(Base):
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    crc: Mapped[str] = mapped_column(String(32), nullable=False)
+    crc: Mapped[str] = mapped_column(String(128), nullable=False)
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     last_updated: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
