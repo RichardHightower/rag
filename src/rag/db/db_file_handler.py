@@ -266,7 +266,7 @@ class DBFileHandler:
             file = session.get(self.File, file_id)
             if file is None:
                 return False
-            
+
             session.delete(file)
             session.flush()
             return True
