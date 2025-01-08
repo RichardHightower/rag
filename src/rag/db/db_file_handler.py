@@ -252,3 +252,21 @@ class DBFileHandler:
                 session.delete(file)
                 return True
             return False
+
+    def delete_file(self, file_id: int) -> bool:
+        """Delete a file and all its associated chunks from the database.
+
+        Args:
+            file_id: ID of the file to delete
+
+        Returns:
+            bool: True if file was deleted, False if not found
+        """
+        with self.session_scope() as session:
+            file = session.get(self.File, file_id)
+            if file is None:
+                return False
+
+            session.delete(file)
+            session.flush()
+            return True

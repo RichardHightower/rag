@@ -198,6 +198,52 @@ def test_remove_file_wrong_project(test_db, embedder):
     assert handler.remove_file(project2.id, file_id) is False
 
 
+def test_delete_file_success(test_db, embedder):
+    """Test successful deletion of a file and its chunks."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+
+    # Create a project and add a file
+    project = handler.create_project("Test Project")
+    file_model = create_test_file()
+    handler.add_file(project.id, file_model)
+
+    # Get the file from DB to get its ID
+    with handler.session_scope() as session:
+        file = (
+            session.query(handler.File)
+            .filter(handler.File.file_path == file_model.path)
+            .first()
+        )
+        file_id = file.id
+
+        # Verify chunks exist
+        chunks = (
+            session.query(handler.Chunk).filter(handler.Chunk.file_id == file_id).all()
+        )
+        assert len(chunks) > 0
+
+    # Delete the file
+    result = handler.delete_file(file_id)
+    assert result is True
+
+    # Verify file and chunks are gone
+    with handler.session_scope() as session:
+        file = session.get(handler.File, file_id)
+        assert file is None
+
+        chunks = (
+            session.query(handler.Chunk).filter(handler.Chunk.file_id == file_id).all()
+        )
+        assert len(chunks) == 0
+
+
+def test_delete_nonexistent_file(test_db):
+    """Test attempting to delete a non-existent file."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    result = handler.delete_file(999999)  # Non-existent ID
+    assert result is False
+
+
 def teardown_module(module):
     """Clean up temporary files after tests."""
     # Clean up any .txt files in the current directory
