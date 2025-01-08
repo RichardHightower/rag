@@ -244,6 +244,46 @@ def test_delete_nonexistent_file(test_db):
     assert result is False
 
 
+def test_get_file(test_db, embedder):
+    """Test getting a file by project ID, path and name."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+
+    # Create a project and add a file
+    project = handler.create_project("Test Project")
+    file_model = create_test_file("Test content")
+    added_file = handler.add_file(project.id, file_model)
+    assert added_file is not None
+
+    # Test successful lookup
+    found_file = handler.get_file(
+        project_id=project.id, file_path=file_model.path, filename=file_model.name
+    )
+    assert found_file is not None
+    assert found_file.id == added_file.id
+    assert found_file.project_id == project.id
+    assert found_file.filename == file_model.name
+    assert found_file.file_path == file_model.path
+
+    # Test lookup with wrong project ID
+    wrong_project = handler.create_project("Wrong Project")
+    not_found = handler.get_file(
+        project_id=wrong_project.id, file_path=file_model.path, filename=file_model.name
+    )
+    assert not_found is None
+
+    # Test lookup with wrong path
+    not_found = handler.get_file(
+        project_id=project.id, file_path="/wrong/path.txt", filename=file_model.name
+    )
+    assert not_found is None
+
+    # Test lookup with wrong filename
+    not_found = handler.get_file(
+        project_id=project.id, file_path=file_model.path, filename="wrong.txt"
+    )
+    assert not_found is None
+
+
 def teardown_module(module):
     """Clean up temporary files after tests."""
     # Clean up any .txt files in the current directory
