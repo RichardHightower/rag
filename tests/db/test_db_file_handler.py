@@ -20,15 +20,161 @@ def embedder():
     return MockEmbedder()
 
 
-def create_test_file(content="Line 1\nLine 2\nLine 3\n"):
-    """Create a FileModel instance for testing."""
+def create_test_file(content="Test content", name="test.txt", path="/path/to/test.txt"):
+    """Create a test file model."""
     return FileModel(
-        name="test.txt",
-        path="/path/to/test.txt",
-        crc=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        name=name,
+        path=path,
+        crc=str(hash(content)),  # Simple hash for testing
         content=content,
         meta_data={},
     )
+
+
+def test_add_duplicate_file_same_crc(test_db):
+    """Test adding the same file twice with same CRC."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    project = handler.create_project("Test Project")
+
+    # Create and add file first time
+    file_model = create_test_file()
+    file1 = handler.add_file(project.id, file_model)
+    assert file1 is not None
+
+    # Add same file again
+    file2 = handler.add_file(project.id, file_model)
+    assert file2 is not None
+    assert file2.id == file1.id  # Should return same file
+
+    # Verify only one file exists in DB
+    with handler.session_scope() as session:
+        file_count = session.query(handler.File).count()
+        assert file_count == 1
+
+        chunk_count = session.query(handler.Chunk).count()
+        assert chunk_count > 0  # Should have original chunks
+
+
+def test_add_duplicate_file_different_project(test_db):
+    """Test adding same file to different projects."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+
+    # Create two projects
+    project1 = handler.create_project("Project 1")
+    project2 = handler.create_project("Project 2")
+
+    # Create test file
+    file_model = create_test_file()
+
+    # Add to first project
+    file1 = handler.add_file(project1.id, file_model)
+    assert file1 is not None
+
+    # Add to second project
+    file2 = handler.add_file(project2.id, file_model)
+    assert file2 is not None
+    assert file2.id != file1.id  # Should be different files
+
+    # Verify both files exist
+    with handler.session_scope() as session:
+        # Should be two files total
+        file_count = session.query(handler.File).count()
+        assert file_count == 2
+
+        # Each project should have its chunks
+        chunks1 = session.query(handler.Chunk).filter_by(file_id=file1.id).count()
+        chunks2 = session.query(handler.Chunk).filter_by(file_id=file2.id).count()
+        assert chunks1 > 0
+        assert chunks2 > 0
+        assert chunks1 == chunks2  # Same content, so same number of chunks
+
+
+def test_add_duplicate_file_different_crc(test_db):
+    """Test adding same file with different content (different CRC)."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    project = handler.create_project("Test Project")
+
+    # Add original file
+    original_content = "Original content"
+    file1 = handler.add_file(project.id, create_test_file(original_content))
+    assert file1 is not None
+    file1_id = file1.id
+
+    # Get original chunk count
+    with handler.session_scope() as session:
+        original_chunk_count = (
+            session.query(handler.Chunk).filter_by(file_id=file1_id).count()
+        )
+
+    # Add modified version of same file
+    modified_content = "Modified content"
+    handler.add_file(
+        project.id,
+        create_test_file(modified_content, name="test.txt", path="/path/to/test.txt"),
+    )
+
+    # Verify database state
+    with handler.session_scope() as session:
+        # Should be exactly one file
+        file_count = session.query(handler.File).count()
+        assert file_count == 1
+
+        # Get the current file and verify its content changed
+        current_file = session.query(handler.File).first()
+        assert current_file is not None
+
+        # Verify chunks were updated
+        current_chunks = session.query(handler.Chunk).all()
+        assert len(current_chunks) > 0
+        # At least one chunk should contain the new content
+        assert any(modified_content in chunk.content for chunk in current_chunks)
+
+
+@pytest.mark.integration
+def test_file_versioning_workflow(test_db):
+    """Integration test for complete file versioning workflow."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    project = handler.create_project("Test Project")
+
+    # Initial version
+    content1 = "Version 1\nThis is the first version of the file."
+    file1 = handler.add_file(project.id, create_test_file(content1))
+    assert file1 is not None
+
+    # Get initial chunk count
+    with handler.session_scope() as session:
+        chunks1 = session.query(handler.Chunk).filter_by(file_id=file1.id).all()
+        chunk_count1 = len(chunks1)
+        assert chunk_count1 > 0
+
+    # Modified version
+    content2 = "Version 2\nThis is the modified version with more content.\nExtra line."
+    file2 = handler.add_file(
+        project.id,
+        create_test_file(content2, name="test.txt", path="/path/to/test.txt"),
+    )
+    assert file2 is not None
+    assert file2.id != file1.id
+
+    # Verify database state
+    with handler.session_scope() as session:
+        # Should only be one file
+        files = session.query(handler.File).all()
+        assert len(files) == 1
+
+        # Check it's the new version
+        assert files[0].id == file2.id
+        assert files[0].crc == file2.crc
+
+        # Verify chunks
+        chunks2 = session.query(handler.Chunk).filter_by(file_id=file2.id).all()
+        assert len(chunks2) > 0
+        # More content should mean more or equal chunks
+        assert len(chunks2) >= chunk_count1
+
+        # Verify old chunks are gone
+        old_chunks = session.query(handler.Chunk).filter_by(file_id=file1.id).all()
+        assert len(old_chunks) == 0
 
 
 def test_create_project(test_db):

@@ -1,5 +1,6 @@
 """Database file handler for managing projects and files."""
 
+import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -15,6 +16,8 @@ from ..config import DB_URL
 from ..embeddings import Embedder, OpenAIEmbedder
 from .dimension_utils import ensure_vector_dimension
 from .models import Base, Chunk, File, Project
+
+logger = logging.getLogger(__name__)
 
 
 class DBFileHandler:
@@ -175,27 +178,41 @@ class DBFileHandler:
             return False
 
     def add_file(self, project_id: int, file_model: FileModel) -> Optional[File]:
-        """Add a file to a project.
+        """Add a file to a project with version checking.
 
         Args:
             project_id: ID of the project
+            file_model: File model containing file information
 
         Returns:
-            bool: Was the file created or not
+            File: Created or existing file record
+            None: If project doesn't exist
         """
-
         with self.session_scope() as session:
             # Verify project exists
             project = session.get(Project, project_id)
-
             if not project:
-                # TODO turn this into an exception
+                logger.error(f"Project {project_id} not found")
                 return None
 
-            # TODO Check to see if the file already exists with the same name, path, crc and project id in the DB,
-            # if it does, return false. We won't reindex files that already exist.
+            # Check if file already exists
+            existing_file = self.get_file(project_id, file_model.path, file_model.name)
 
-            # Create file record
+            if existing_file:
+                if existing_file.crc == file_model.crc:
+                    logger.info(
+                        f"File {file_model.name} already exists with same CRC {file_model.crc}"
+                    )
+                    return existing_file
+                else:
+                    logger.info(
+                        f"File {file_model.name} exists but CRC differs "
+                        f"(old: {existing_file.crc}, new: {file_model.crc})"
+                    )
+                    logger.info("Deleting old version and creating new version")
+                    self.delete_file(existing_file.id)
+
+            # Create new file record
             file = File(
                 project_id=project_id,
                 filename=file_model.name,
@@ -219,7 +236,7 @@ class DBFileHandler:
                 )
                 session.add(chunk_obj)
 
-                # Get a copy of the file data
+            # Get a copy of the file data
             file_data = {
                 "id": file.id,
                 "project_id": file.project_id,
@@ -232,6 +249,9 @@ class DBFileHandler:
 
             # Commit to ensure the data is saved
             session.commit()
+            logger.info(
+                f"Successfully added file {file_model.name} to project {project_id}"
+            )
 
             # Return a new instance with the data
             return File(**file_data)
