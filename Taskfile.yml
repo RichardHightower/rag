@@ -57,8 +57,6 @@ tasks:
       # Generate dev requirements next
       - pip install -e ".[dev]"
       - pip freeze --exclude-editable > requirements-dev.txt
-    sources:
-      - setup.py
     generates:
       - requirements.txt
       - requirements-dev.txt
