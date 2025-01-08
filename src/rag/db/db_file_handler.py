@@ -270,3 +270,37 @@ class DBFileHandler:
             session.delete(file)
             session.flush()
             return True
+
+    def get_file(self, project_id: int, file_path: str, filename: str) -> Optional[File]:
+        """Look up a file by project ID, path and name.
+
+        Args:
+            project_id: ID of the project containing the file
+            file_path: Full path of the file
+            filename: Name of the file
+
+        Returns:
+            File if found, None otherwise
+        """
+        with self.session_scope() as session:
+            file = (
+                session.query(File)
+                .filter(File.project_id == project_id)
+                .filter(File.file_path == file_path)
+                .filter(File.filename == filename)
+                .first()
+            )
+
+            if file:
+                # Return a copy of the file data
+                return File(
+                    id=file.id,
+                    project_id=file.project_id,
+                    filename=file.filename,
+                    file_path=file.file_path,
+                    crc=file.crc,
+                    file_size=file.file_size,
+                    last_updated=file.last_updated,
+                    last_ingested=file.last_ingested,
+                    created_at=file.created_at
+                )
