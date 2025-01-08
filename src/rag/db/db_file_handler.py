@@ -271,7 +271,9 @@ class DBFileHandler:
             session.flush()
             return True
 
-    def get_file(self, project_id: int, file_path: str, filename: str) -> Optional[File]:
+    def get_file(
+        self, project_id: int, file_path: str, filename: str
+    ) -> Optional[File]:
         """Look up a file by project ID, path and name.
 
         Args:
@@ -302,5 +304,7 @@ class DBFileHandler:
                     file_size=file.file_size,
                     last_updated=file.last_updated,
                     last_ingested=file.last_ingested,
-                    created_at=file.created_at
+                    created_at=file.created_at,
                 )
+            else:
+                return None

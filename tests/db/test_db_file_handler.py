@@ -243,6 +243,7 @@ def test_delete_nonexistent_file(test_db):
     result = handler.delete_file(999999)  # Non-existent ID
     assert result is False
 
+
 def test_get_file(test_db, embedder):
     """Test getting a file by project ID, path and name."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
@@ -255,9 +256,7 @@ def test_get_file(test_db, embedder):
 
     # Test successful lookup
     found_file = handler.get_file(
-        project_id=project.id,
-        file_path=file_model.path,
-        filename=file_model.name
+        project_id=project.id, file_path=file_model.path, filename=file_model.name
     )
     assert found_file is not None
     assert found_file.id == added_file.id
@@ -268,25 +267,19 @@ def test_get_file(test_db, embedder):
     # Test lookup with wrong project ID
     wrong_project = handler.create_project("Wrong Project")
     not_found = handler.get_file(
-        project_id=wrong_project.id,
-        file_path=file_model.path,
-        filename=file_model.name
+        project_id=wrong_project.id, file_path=file_model.path, filename=file_model.name
     )
     assert not_found is None
 
     # Test lookup with wrong path
     not_found = handler.get_file(
-        project_id=project.id,
-        file_path="/wrong/path.txt",
-        filename=file_model.name
+        project_id=project.id, file_path="/wrong/path.txt", filename=file_model.name
     )
     assert not_found is None
 
     # Test lookup with wrong filename
     not_found = handler.get_file(
-        project_id=project.id,
-        file_path=file_model.path,
-        filename="wrong.txt"
+        project_id=project.id, file_path=file_model.path, filename="wrong.txt"
     )
     assert not_found is None
 
