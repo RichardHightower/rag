@@ -3,15 +3,14 @@
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Sequence, Union
 
 import numpy as np
-from sqlalchemy import create_engine
+from sqlalchemy import Float, create_engine, func, literal, select
 from sqlalchemy.orm import sessionmaker
 
-from sqlalchemy import Float, literal, select, func
-
-from rag.model import Chunk as ChunkModel, ChunkResults, ChunkResult
+from rag.model import Chunk as ChunkModel
+from rag.model import ChunkResult, ChunkResults
 from rag.model import File as FileModel
 
 from ..chunking import LineChunker
@@ -27,7 +26,12 @@ logger = logging.getLogger(__name__)
 class DBFileHandler:
     """Handler for managing files in the database."""
 
-    def __init__(self, db_url: str = DB_URL, embedder: Optional[Embedder] = None, chunker: Optional[Chunker] = None):
+    def __init__(
+        self,
+        db_url: str = DB_URL,
+        embedder: Optional[Embedder] = None,
+        chunker: Optional[Chunker] = None,
+    ):
         """Initialize the handler.
 
         Args:
@@ -43,6 +47,7 @@ class DBFileHandler:
         self.engine = create_engine(db_url)
         self.embedder = embedder or OpenAIEmbedder()
         self.Session = sessionmaker(bind=self.engine)
+        self.chunker: Chunker
 
         if not chunker:
             self.chunker = LineChunker()
@@ -337,7 +342,7 @@ class DBFileHandler:
             else:
                 return None
 
-    def get_projects(self, limit: int = None, offset: int = None) -> List[Project]:
+    def get_projects(self, limit: int = -1, offset: int = -1) -> List[Project]:
         """Get a list of all projects.
 
         Args:
@@ -350,9 +355,9 @@ class DBFileHandler:
         with self.session_scope() as session:
             query = session.query(Project).order_by(Project.created_at.desc())
 
-            if limit is not None:
+            if limit != -1:
                 query = query.limit(limit)
-            if offset is not None:
+            if offset != -1:
                 query = query.offset(offset)
 
             projects = query.all()
@@ -364,7 +369,7 @@ class DBFileHandler:
                     name=project.name,
                     description=project.description,
                     created_at=project.created_at,
-                    updated_at=project.updated_at
+                    updated_at=project.updated_at,
                 )
                 for project in projects
             ]
@@ -386,19 +391,25 @@ class DBFileHandler:
                 return []
 
             # Query all files for the project
-            db_files = session.query(self.File).filter(self.File.project_id == project_id).all()
+            db_files = (
+                session.query(self.File)
+                .filter(self.File.project_id == project_id)
+                .all()
+            )
 
             # Convert DB models to FileModel instances
             files = []
             for db_file in db_files:
                 # Get all chunks for this file, ordered by chunk_index
-                chunks = (session.query(self.Chunk)
-                          .filter(self.Chunk.file_id == db_file.id)
-                          .order_by(self.Chunk.chunk_index)
-                          .all())
+                chunks = (
+                    session.query(self.Chunk)
+                    .filter(self.Chunk.file_id == db_file.id)
+                    .order_by(self.Chunk.chunk_index)
+                    .all()
+                )
 
                 # Reconstruct original content from chunks
-                content = '\n'.join(chunk.content for chunk in chunks)
+                content = "\n".join(chunk.content for chunk in chunks)
 
                 # Create FileModel instance
                 file_model = FileModel(
@@ -406,20 +417,25 @@ class DBFileHandler:
                     path=db_file.file_path,
                     crc=db_file.crc,
                     content=content,
-                    meta_data={'type': db_file.filename.split('.')[-1] if '.' in db_file.filename else ''}
+                    meta_data={
+                        "type": (
+                            db_file.filename.split(".")[-1]
+                            if "." in db_file.filename
+                            else ""
+                        )
+                    },
                 )
                 files.append(file_model)
 
             return files
 
-
     def search_chunks_by_text(
-            self,
-            project_id: int,
-            query_text: str,
-            page: int = 1,
-            page_size: int = 10,
-            similarity_threshold: float = 0.7
+        self,
+        project_id: int,
+        query_text: str,
+        page: int = 1,
+        page_size: int = 10,
+        similarity_threshold: float = 0.7,
     ) -> ChunkResults:
         """Search for chunks in a project using text query with pagination."""
         if page < 1:
@@ -433,22 +449,16 @@ class DBFileHandler:
         )[0]
 
         return self.search_chunks_by_embedding(
-            project_id,
-            query_embedding,
-            page,
-            page_size,
-            similarity_threshold
+            project_id, query_embedding, page, page_size, similarity_threshold
         )
-
-
 
     def search_chunks_by_embedding(
         self,
         project_id: int,
-        embedding: np.ndarray,
+        embedding: Union[np.ndarray, Sequence[float]],
         page: int = 1,
         page_size: int = 10,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.7,
     ) -> ChunkResults:
         if page < 1:
             raise ValueError("Page number must be greater than 0")
@@ -467,7 +477,9 @@ class DBFileHandler:
             distance_expr = self.Chunk.embedding.op("<=>")(embedding)
 
             # Mark 1.0 as a float literal so that it doesn't become a vector
-            similarity_expr = (literal(1.0, type_=Float) - distance_expr).label("similarity")
+            similarity_expr = (literal(1.0, type_=Float) - distance_expr).label(
+                "similarity"
+            )
 
             # Also mark threshold as a float literal if needed
             threshold_expr = literal(similarity_threshold, type_=Float)
@@ -486,26 +498,23 @@ class DBFileHandler:
 
             # Pagination
             offset = (page - 1) * page_size
-            results = (
-                session.execute(
-                    base_query.order_by(similarity_expr.desc())
-                    .offset(offset)
-                    .limit(page_size)
-                )
-                .all()
-            )
+            results = session.execute(
+                base_query.order_by(similarity_expr.desc())
+                .offset(offset)
+                .limit(page_size)
+            ).all()
 
             # Convert to your Pydantic "ChunkResults"
             chunk_results = []
-            for (chunk_row, similarity) in results:
+            for chunk_row, similarity in results:
                 chunk_results.append(
                     ChunkResult(
                         score=float(similarity),
                         chunk=ChunkModel(
                             target_size=1,
                             content=chunk_row.content,
-                            index=chunk_row.chunk_index
-                        )
+                            index=chunk_row.chunk_index,
+                        ),
                     )
                 )
 

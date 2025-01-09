@@ -1,11 +1,13 @@
 """OpenAI embedder implementation."""
 
-from typing import List, Optional
-from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
 import os
+from typing import List, Optional
+
+from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
+
 # Set OpenAI API key in environment before importing openai
 if OPENAI_API_KEY:
-    os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
 import openai
 

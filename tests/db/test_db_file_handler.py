@@ -500,7 +500,7 @@ def test_list_files(test_db, embedder):
     files_data = [
         ("file1.txt", "Content of file 1\nMore content"),
         ("file2.md", "# Markdown file\n## Section"),
-        ("file3.py", "def hello():\n    print('Hello')")
+        ("file3.py", "def hello():\n    print('Hello')"),
     ]
 
     original_files = []
@@ -510,7 +510,7 @@ def test_list_files(test_db, embedder):
             path=f"/test/path/{filename}",
             crc=str(hash(content)),
             content=content,
-            meta_data={"type": filename.split(".")[-1]}
+            meta_data={"type": filename.split(".")[-1]},
         )
         result = handler.add_file(project.id, file_model)
         assert result is not None
@@ -544,7 +544,7 @@ def test_list_files(test_db, embedder):
     file_to_delete = handler.get_file(
         project_id=project.id,
         file_path=f"/test/path/{files_data[0][0]}",
-        filename=files_data[0][0]
+        filename=files_data[0][0],
     )
     assert file_to_delete is not None
     handler.delete_file(file_to_delete.id)
