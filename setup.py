@@ -1,10 +1,14 @@
-"""Setup file for the rag package."""
-
 from setuptools import setup, find_packages
 
 setup(
-    name="rag",
+    name="vector-rag",
     version="0.1.0",
+    description="RAG (Retrieval-Augmented Generation) System",
+    long_description=open('README.md').read(),
+    long_description_content_type="text/markdown",
+    author="Richard Hightower",
+    author_email="richardhightower@gmail.com",
+    url="https://github.com/RichardHightower/rag",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
@@ -25,4 +29,10 @@ setup(
         ]
     },
     python_requires=">=3.12,<3.13",
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3.12",
+    ],
 )
