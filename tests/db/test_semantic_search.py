@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from sqlalchemy import text
 
+from rag.chunking import LineChunker
 from rag.config import EMBEDDING_DIM, TEST_DB_NAME, get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.embeddings import MockEmbedder
@@ -34,7 +35,7 @@ def test_files():
             name=f"test{i}.txt",
             path=f"/path/to/test{i}.txt",
             crc=f"crc{i}",
-            content=f"Test content {'x' * (i * 10)}" * (i + 1),
+            content=f"Test content {'x\n' * (i * 10)}" * (i + 1),
             meta_data={"type": "test"}
         )
         for i in range(5)  # Creates 5 files of increasing size
@@ -47,7 +48,7 @@ def populated_handler(test_db, mock_embedder, test_files):
     # Ensure vector dimensions match
     ensure_vector_dimension(test_db, EMBEDDING_DIM)
 
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), mock_embedder)
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), mock_embedder, chunker=LineChunker(5,0))
     project = handler.create_project("Test Project")
 
     # Add test files

@@ -9,12 +9,13 @@ import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from sqlalchemy import func, select
+from sqlalchemy import Float, literal, select, func
 
 from rag.model import Chunk as ChunkModel, ChunkResults, ChunkResult
 from rag.model import File as FileModel
 
 from ..chunking import LineChunker
+from ..chunking.base_chunker import Chunker
 from ..config import DB_URL
 from ..embeddings import Embedder, OpenAIEmbedder
 from .dimension_utils import ensure_vector_dimension
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 class DBFileHandler:
     """Handler for managing files in the database."""
 
-    def __init__(self, db_url: str = DB_URL, embedder: Optional[Embedder] = None):
+    def __init__(self, db_url: str = DB_URL, embedder: Optional[Embedder] = None, chunker: Optional[Chunker] = None):
         """Initialize the handler.
 
         Args:
@@ -42,7 +43,11 @@ class DBFileHandler:
         self.engine = create_engine(db_url)
         self.embedder = embedder or OpenAIEmbedder()
         self.Session = sessionmaker(bind=self.engine)
-        self.chunker = LineChunker()
+
+        if not chunker:
+            self.chunker = LineChunker()
+        else:
+            self.chunker = chunker
 
         # Make models accessible
         self.Project = Project
@@ -436,80 +441,77 @@ class DBFileHandler:
         )
 
 
+
     def search_chunks_by_embedding(
-            self,
-            project_id: int,
-            embedding: np.ndarray,
-            page: int = 1,
-            page_size: int = 10,
-            similarity_threshold: float = 0.7
+        self,
+        project_id: int,
+        embedding: np.ndarray,
+        page: int = 1,
+        page_size: int = 10,
+        similarity_threshold: float = 0.7
     ) -> ChunkResults:
-        """Search for chunks in a project using embedding vector with pagination."""
         if page < 1:
             raise ValueError("Page number must be greater than 0")
         if page_size < 1:
             raise ValueError("Page size must be greater than 1")
 
-        # Ensure embedding is a numpy array with correct dtype and shape
+        # Ensure `embedding` is a 1D float32 (big-endian) array
         if not isinstance(embedding, np.ndarray):
-            embedding = np.array(embedding, dtype='>f4')
-        elif embedding.dtype != '>f4':
-            embedding = embedding.astype('>f4')
-
-        # Ensure it's 1-dimensional
+            embedding = np.array(embedding, dtype=">f4")
+        elif embedding.dtype != ">f4":
+            embedding = embedding.astype(">f4")
         embedding = embedding.ravel()
 
         with self.session_scope() as session:
-            # Use pgvector's <=> operator for cosine distance
-            distance_expr = self.Chunk.embedding.op('<=>')(embedding)
-            # Convert distance to similarity score
-            similarity_expr = (1.0 - distance_expr).label('similarity')
+            # distance_expr is chunks.embedding <=> your_query_embedding
+            distance_expr = self.Chunk.embedding.op("<=>")(embedding)
 
-            # Base query
+            # Mark 1.0 as a float literal so that it doesn't become a vector
+            similarity_expr = (literal(1.0, type_=Float) - distance_expr).label("similarity")
+
+            # Also mark threshold as a float literal if needed
+            threshold_expr = literal(similarity_threshold, type_=Float)
+
+            # Build query
             base_query = (
                 select(self.Chunk, similarity_expr)
                 .join(self.File)
                 .where(self.File.project_id == project_id)
-                .where(similarity_expr >= similarity_threshold)
+                .where(similarity_expr >= threshold_expr)  # numeric comparison
             )
 
-            # Get total count
-            count_query = (
-                select(func.count())
-                .select_from(base_query.subquery())
-            )
+            # Count how many total rows match
+            count_query = select(func.count()).select_from(base_query.subquery())
             total_count = session.execute(count_query).scalar() or 0
 
-            # Calculate offset
+            # Pagination
             offset = (page - 1) * page_size
-
-            # Get paginated results
             results = (
                 session.execute(
-                    base_query
-                    .order_by(similarity_expr.desc())
+                    base_query.order_by(similarity_expr.desc())
                     .offset(offset)
                     .limit(page_size)
                 )
                 .all()
             )
 
-            # Convert to ChunkResults
-            chunk_results = [
-                ChunkResult(
-                    score=float(similarity),
-                    chunk=ChunkModel(
-                        target_size=1,  # Not relevant for returned chunks
-                        content=chunk.content,
-                        index=chunk.chunk_index
+            # Convert to your Pydantic "ChunkResults"
+            chunk_results = []
+            for (chunk_row, similarity) in results:
+                chunk_results.append(
+                    ChunkResult(
+                        score=float(similarity),
+                        chunk=ChunkModel(
+                            target_size=1,
+                            content=chunk_row.content,
+                            index=chunk_row.chunk_index
+                        )
                     )
                 )
-                for chunk, similarity in results
-            ]
 
             return ChunkResults(
                 results=chunk_results,
                 total_count=total_count,
                 page=page,
-                page_size=page_size
+                page_size=page_size,
             )
