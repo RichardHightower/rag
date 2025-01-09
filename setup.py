@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vector-rag",
-    version="0.1.0",
+    version="0.1.1",
     description="RAG (Retrieval-Augmented Generation) System",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",

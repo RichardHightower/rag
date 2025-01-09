@@ -1,10 +1,14 @@
 """OpenAI embedder implementation."""
 
 from typing import List, Optional
+from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
+import os
+# Set OpenAI API key in environment before importing openai
+if OPENAI_API_KEY:
+    os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
 import openai
 
-from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
 from ..model import Chunk
 from .base import Embedder
 
