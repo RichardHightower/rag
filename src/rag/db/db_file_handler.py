@@ -5,10 +5,13 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
 
+import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from rag.model import Chunk as ChunkModel
+from sqlalchemy import func, select
+
+from rag.model import Chunk as ChunkModel, ChunkResults, ChunkResult
 from rag.model import File as FileModel
 
 from ..chunking import LineChunker
@@ -328,3 +331,185 @@ class DBFileHandler:
                 )
             else:
                 return None
+
+    def get_projects(self, limit: int = None, offset: int = None) -> List[Project]:
+        """Get a list of all projects.
+
+        Args:
+            limit: Maximum number of projects to return
+            offset: Number of projects to skip
+
+        Returns:
+            List[Project]: List of projects ordered by creation date (newest first)
+        """
+        with self.session_scope() as session:
+            query = session.query(Project).order_by(Project.created_at.desc())
+
+            if limit is not None:
+                query = query.limit(limit)
+            if offset is not None:
+                query = query.offset(offset)
+
+            projects = query.all()
+
+            # Create detached copies of the projects
+            return [
+                Project(
+                    id=project.id,
+                    name=project.name,
+                    description=project.description,
+                    created_at=project.created_at,
+                    updated_at=project.updated_at
+                )
+                for project in projects
+            ]
+
+    def list_files(self, project_id: int) -> List[FileModel]:
+        """List all files in a project.
+
+        Args:
+            project_id: ID of the project
+
+        Returns:
+            List[FileModel]: List of file models, empty list if project doesn't exist
+        """
+        with self.session_scope() as session:
+            # Verify project exists
+            project = session.get(self.Project, project_id)
+            if not project:
+                logger.error(f"Project {project_id} not found")
+                return []
+
+            # Query all files for the project
+            db_files = session.query(self.File).filter(self.File.project_id == project_id).all()
+
+            # Convert DB models to FileModel instances
+            files = []
+            for db_file in db_files:
+                # Get all chunks for this file, ordered by chunk_index
+                chunks = (session.query(self.Chunk)
+                          .filter(self.Chunk.file_id == db_file.id)
+                          .order_by(self.Chunk.chunk_index)
+                          .all())
+
+                # Reconstruct original content from chunks
+                content = '\n'.join(chunk.content for chunk in chunks)
+
+                # Create FileModel instance
+                file_model = FileModel(
+                    name=db_file.filename,
+                    path=db_file.file_path,
+                    crc=db_file.crc,
+                    content=content,
+                    meta_data={'type': db_file.filename.split('.')[-1] if '.' in db_file.filename else ''}
+                )
+                files.append(file_model)
+
+            return files
+
+
+    def search_chunks_by_text(
+            self,
+            project_id: int,
+            query_text: str,
+            page: int = 1,
+            page_size: int = 10,
+            similarity_threshold: float = 0.7
+    ) -> ChunkResults:
+        """Search for chunks in a project using text query with pagination."""
+        if page < 1:
+            raise ValueError("Page number must be greater than 0")
+        if page_size < 1:
+            raise ValueError("Page size must be greater than 1")
+
+        # Get embedding for query text
+        query_embedding = self.embedder.embed_texts(
+            [ChunkModel(target_size=1, content=query_text, index=0)]
+        )[0]
+
+        return self.search_chunks_by_embedding(
+            project_id,
+            query_embedding,
+            page,
+            page_size,
+            similarity_threshold
+        )
+
+
+    def search_chunks_by_embedding(
+            self,
+            project_id: int,
+            embedding: np.ndarray,
+            page: int = 1,
+            page_size: int = 10,
+            similarity_threshold: float = 0.7
+    ) -> ChunkResults:
+        """Search for chunks in a project using embedding vector with pagination."""
+        if page < 1:
+            raise ValueError("Page number must be greater than 0")
+        if page_size < 1:
+            raise ValueError("Page size must be greater than 1")
+
+        # Ensure embedding is a numpy array with correct dtype and shape
+        if not isinstance(embedding, np.ndarray):
+            embedding = np.array(embedding, dtype='>f4')
+        elif embedding.dtype != '>f4':
+            embedding = embedding.astype('>f4')
+
+        # Ensure it's 1-dimensional
+        embedding = embedding.ravel()
+
+        with self.session_scope() as session:
+            # Use pgvector's <=> operator for cosine distance
+            distance_expr = self.Chunk.embedding.op('<=>')(embedding)
+            # Convert distance to similarity score
+            similarity_expr = (1.0 - distance_expr).label('similarity')
+
+            # Base query
+            base_query = (
+                select(self.Chunk, similarity_expr)
+                .join(self.File)
+                .where(self.File.project_id == project_id)
+                .where(similarity_expr >= similarity_threshold)
+            )
+
+            # Get total count
+            count_query = (
+                select(func.count())
+                .select_from(base_query.subquery())
+            )
+            total_count = session.execute(count_query).scalar() or 0
+
+            # Calculate offset
+            offset = (page - 1) * page_size
+
+            # Get paginated results
+            results = (
+                session.execute(
+                    base_query
+                    .order_by(similarity_expr.desc())
+                    .offset(offset)
+                    .limit(page_size)
+                )
+                .all()
+            )
+
+            # Convert to ChunkResults
+            chunk_results = [
+                ChunkResult(
+                    score=float(similarity),
+                    chunk=ChunkModel(
+                        target_size=1,  # Not relevant for returned chunks
+                        content=chunk.content,
+                        index=chunk.chunk_index
+                    )
+                )
+                for chunk, similarity in results
+            ]
+
+            return ChunkResults(
+                results=chunk_results,
+                total_count=total_count,
+                page=page,
+                page_size=page_size
+            )

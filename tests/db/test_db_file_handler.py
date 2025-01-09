@@ -130,7 +130,6 @@ def test_add_duplicate_file_different_crc(test_db):
         assert any(modified_content in chunk.content for chunk in current_chunks)
 
 
-@pytest.mark.integration
 def test_file_versioning_workflow(test_db):
     """Integration test for complete file versioning workflow."""
     handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
@@ -439,3 +438,123 @@ def teardown_module(module):
                 item.unlink()
             except OSError:
                 pass
+
+
+def test_get_projects(test_db):
+    """Test getting project listings."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+
+    # Create some test projects
+    project_names = ["Project A", "Project B", "Project C"]
+    created_projects = []
+
+    for name in project_names:
+        project = handler.create_project(name, f"Description for {name}")
+        created_projects.append(project)
+
+    # Test getting all projects
+    all_projects = handler.get_projects()
+    assert len(all_projects) == len(project_names)
+
+    # Verify projects are ordered by creation date (newest first)
+    for i in range(len(all_projects) - 1):
+        assert all_projects[i].created_at >= all_projects[i + 1].created_at
+
+    # Test limit
+    limited_projects = handler.get_projects(limit=2)
+    assert len(limited_projects) == 2
+    assert limited_projects[0].name == project_names[-1]  # Most recent project
+
+    # Test offset
+    offset_projects = handler.get_projects(offset=1)
+    assert len(offset_projects) == 2
+    assert offset_projects[0].name == project_names[-2]  # Second most recent project
+
+    # Test limit and offset together
+    paged_projects = handler.get_projects(limit=1, offset=1)
+    assert len(paged_projects) == 1
+    assert paged_projects[0].name == project_names[-2]
+
+
+def test_get_projects_empty(test_db):
+    """Test getting project listings when there are no projects."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+
+    projects = handler.get_projects()
+    assert len(projects) == 0
+
+    # Test with limit and offset on empty database
+    assert len(handler.get_projects(limit=10)) == 0
+    assert len(handler.get_projects(offset=5)) == 0
+
+
+def test_list_files(test_db, embedder):
+    """Test listing files in a project."""
+    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+
+    # Create a project
+    project = handler.create_project("Test Project")
+    assert project is not None
+
+    # Create and add multiple files
+    files_data = [
+        ("file1.txt", "Content of file 1\nMore content"),
+        ("file2.md", "# Markdown file\n## Section"),
+        ("file3.py", "def hello():\n    print('Hello')")
+    ]
+
+    original_files = []
+    for filename, content in files_data:
+        file_model = FileModel(
+            name=filename,
+            path=f"/test/path/{filename}",
+            crc=str(hash(content)),
+            content=content,
+            meta_data={"type": filename.split(".")[-1]}
+        )
+        result = handler.add_file(project.id, file_model)
+        assert result is not None
+        original_files.append(file_model)
+
+    # Test listing files
+    listed_files = handler.list_files(project.id)
+
+    # Verify the correct number of files
+    assert len(listed_files) == len(files_data)
+
+    # Verify each file matches the original
+    for orig_file, listed_file in zip(original_files, listed_files):
+        assert listed_file.name == orig_file.name
+        assert listed_file.path == orig_file.path
+        assert listed_file.crc == orig_file.crc
+        assert listed_file.content == orig_file.content
+        assert listed_file.meta_data["type"] == orig_file.meta_data["type"]
+        assert listed_file.size == len(orig_file.content)
+
+    # Test listing files for non-existent project
+    empty_list = handler.list_files(999)
+    assert len(empty_list) == 0
+
+    # Test listing files for project with no files
+    empty_project = handler.create_project("Empty Project")
+    empty_result = handler.list_files(empty_project.id)
+    assert len(empty_result) == 0
+
+    # Test after deleting a file
+    file_to_delete = handler.get_file(
+        project_id=project.id,
+        file_path=f"/test/path/{files_data[0][0]}",
+        filename=files_data[0][0]
+    )
+    assert file_to_delete is not None
+    handler.delete_file(file_to_delete.id)
+
+    # Verify file was removed from list
+    updated_files = handler.list_files(project.id)
+    assert len(updated_files) == len(files_data) - 1
+    assert all(f.name != files_data[0][0] for f in updated_files)
+
+    # Test after deleting project
+    handler.delete_project(project.id)
+    final_list = handler.list_files(project.id)
+    assert len(final_list) == 0
