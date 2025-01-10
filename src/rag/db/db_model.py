@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
-class Base(DeclarativeBase):
+class DbBase(DeclarativeBase):
     """Base class for all models."""
 
     pass
@@ -22,7 +22,7 @@ def utc_now() -> datetime:
     return datetime.now(tz.utc)
 
 
-class Project(Base):
+class ProjectDB(DbBase):
     """Project model."""
 
     __tablename__ = "projects"
@@ -38,12 +38,12 @@ class Project(Base):
         DateTime(timezone=True), default=utc_now
     )
 
-    files: Mapped[List["File"]] = relationship(
-        "File", back_populates="project", cascade="all, delete-orphan"
+    files: Mapped[List["FileDB"]] = relationship(
+        "FileDB", back_populates="project", cascade="all, delete-orphan"
     )
 
 
-class File(Base):
+class FileDB(DbBase):
     """File model."""
 
     __tablename__ = "files"
@@ -66,13 +66,13 @@ class File(Base):
         DateTime(timezone=True), default=utc_now
     )
 
-    project: Mapped["Project"] = relationship("Project", back_populates="files")
-    chunks: Mapped[List["Chunk"]] = relationship(
-        "Chunk", back_populates="file", cascade="all, delete-orphan"
+    project: Mapped["ProjectDB"] = relationship("ProjectDB", back_populates="files")
+    chunks: Mapped[List["ChunkDB"]] = relationship(
+        "ChunkDB", back_populates="file", cascade="all, delete-orphan"
     )
 
 
-class Chunk(Base):
+class ChunkDB(DbBase):
     """Chunk model with vector embedding."""
 
     __tablename__ = "chunks"
@@ -89,4 +89,4 @@ class Chunk(Base):
         DateTime(timezone=True), default=utc_now
     )
 
-    file: Mapped["File"] = relationship("File", back_populates="chunks")
+    file: Mapped["FileDB"] = relationship("FileDB", back_populates="chunks")

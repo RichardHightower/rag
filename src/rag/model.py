@@ -1,23 +1,39 @@
 """File and Chunk models using Pydantic."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
+
+
+class Project(BaseModel):
+    """File model."""
+
+    id: NonNegativeInt
+    name: str = Field(..., min_length=1, max_length=80)
+    description: Optional[str] = Field(..., min_length=1, max_length=255)
 
 
 class File(BaseModel):
     """File model."""
 
+    id: Optional[NonNegativeInt] = None
     name: str = Field(..., min_length=1, max_length=80)
     path: str = Field(..., min_length=1, max_length=255)
     crc: str
-    content: str
+    content: Optional[str] = None
     meta_data: Dict[str, str] = Field(default_factory=dict)
+    file_size: Optional[NonNegativeInt] = None
 
     @property
     def size(self) -> int:
         """Get the actual size of the chunk content."""
-        return len(self.content)
+        if self.file_size is not None:
+            return self.file_size
+        else:
+            if self.content is None:
+                return 0
+            else:
+                return len(self.content)
 
 
 class Chunk(BaseModel):

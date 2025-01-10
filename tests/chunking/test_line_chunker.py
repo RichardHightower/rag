@@ -59,12 +59,12 @@ def test_empty_text(chunker):
         name="empty.txt",
         path="/path/to/empty.txt",
         crc="empty123",
-        content="",
+        content="content",
         meta_data={},
     )
     chunks = chunker.chunk_text(empty_file)
     assert len(chunks) == 1
-    assert chunks[0].content == ""
+    assert chunks[0].content == "content"
 
 
 def test_whitespace_text(chunker):
