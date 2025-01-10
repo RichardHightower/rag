@@ -115,18 +115,28 @@ tasks:
     cmds:
       - create-project-markdown
 
+  db:up:
+    desc: Start the database container
+    cmds:
+      - docker compose up -d db
+      - sleep 5  # Wait for DB to be ready
+      - task: db:init
+
+  db:init:
+    desc: Initialize database schema and indexes
+    cmds:
+      - python src/scripts/init_db.py
+
   db:recreate:
-    desc: "Recreate database from scratch"
+    desc: Recreate database from scratch
     cmds:
       - task: db:down
       - task: db:up
-      - sleep 5  # Give DB time to start
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
-      - |
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+  db:down:
+    desc: Stop the database container
+    cmds:
+      - docker compose down
 
   demo:mock:
     desc: "Run example ingestion flow with mock embedder"

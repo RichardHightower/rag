@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_files_project_id ON files(project_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id);
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks USING ivfflat (embedding vector_cosine_ops);
+
 
 -- Create a function to update timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
