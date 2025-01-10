@@ -118,7 +118,7 @@ tasks:
   db:up:
     desc: Start the database container
     cmds:
-      - docker-compose up -d db
+      - docker compose up -d db
       - sleep 5  # Wait for DB to be ready
       - task: db:init
 
@@ -136,7 +136,7 @@ tasks:
   db:down:
     desc: Stop the database container
     cmds:
-      - docker-compose down
+      - docker compose down
 
   demo:mock:
     desc: "Run example ingestion flow with mock embedder"
