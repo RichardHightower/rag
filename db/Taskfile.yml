@@ -7,20 +7,20 @@ tasks:
       - docker compose build db
       - echo "✅ Built Postgres Docker image with pgvector"
 
-  up:
-    desc: "Start Postgres container with pgvector"
-    cmds:
-      - docker compose up -d db
-      - echo "Waiting for database to be ready..."
-      - sleep 5
-      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /docker-entrypoint-initdb.d/init.sql
-      - echo "✅ Postgres container is running with pgvector extension"
-
-  down:
-    desc: "Stop and remove Postgres container"
-    cmds:
-      - docker compose down
-      - echo "✅ Stopped and removed Postgres container"
+#  up:
+#    desc: "Start Postgres container with pgvector"
+#    cmds:
+#      - docker compose up -d db
+#      - echo "Waiting for database to be ready..."
+#      - sleep 5
+#      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /docker-entrypoint-initdb.d/init.sql
+#      - echo "✅ Postgres container is running with pgvector extension"
+#
+#  down:
+#    desc: "Stop and remove Postgres container"
+#    cmds:
+#      - docker compose down
+#      - echo "✅ Stopped and removed Postgres container"
 
   test:
     desc: "Test Postgres connection and pgvector extension"
@@ -55,7 +55,7 @@ tasks:
         docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c "\dt"
       - echo "✅ Database tables listed successfully"
 
-  psql:
-    desc: "Open psql console"
-    cmds:
-      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+#  psql:
+#    desc: "Open psql console"
+#    cmds:
+#      - docker compose exec db psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
