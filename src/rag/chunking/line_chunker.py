@@ -30,8 +30,12 @@ class LineChunker(Chunker):
             List[Chunk]: List of text chunks
         """
 
+        # Split text into lines
+        if file.content is None:
+            return []
+
         lines = file.content.splitlines()
-        if not lines:
+        if not lines and file.content:
             return [Chunk(target_size=self.chunk_size, content=file.content, index=0)]
 
         chunks = []

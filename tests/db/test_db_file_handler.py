@@ -405,9 +405,8 @@ def test_get_file(test_db, embedder):
     )
     assert found_file is not None
     assert found_file.id == added_file.id
-    assert found_file.project_id == project.id
-    assert found_file.filename == file_model.name
-    assert found_file.file_path == file_model.path
+    assert found_file.name == file_model.name
+    assert found_file.path == file_model.path
 
     # Test lookup with wrong project ID
     wrong_project = handler.create_project("Wrong Project")

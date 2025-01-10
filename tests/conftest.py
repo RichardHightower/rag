@@ -92,9 +92,9 @@ def test_db():
         conn.execute(text("commit"))
 
         # Import and create tables
-        from rag.db.models import Base
+        from rag.db.db_model import DbBase
 
-        Base.metadata.create_all(test_engine)
+        DbBase.metadata.create_all(test_engine)
         conn.execute(text("commit"))
 
     yield test_engine

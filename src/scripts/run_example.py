@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 
 from rag.config import OPENAI_API_KEY, get_db_url
 from rag.db.db_file_handler import DBFileHandler
-from rag.db.models import Base
+from rag.db.db_model import DbBase
 from rag.embeddings.mock_embedder import MockEmbedder
 from rag.embeddings.openai_embedder import OpenAIEmbedder
 from rag.model import File as FileModel
@@ -42,7 +42,7 @@ def create_embedder(embedder_type="mock"):
 def ensure_tables_exist():
     """Ensure database tables exist."""
     engine = create_engine(get_db_url())
-    Base.metadata.create_all(engine)
+    DbBase.metadata.create_all(engine)
     logger.info("Database tables created")
 
 
