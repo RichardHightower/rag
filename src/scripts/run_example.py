@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine
 
+from rag.chunking import SizeChunker
 from rag.config import OPENAI_API_KEY, get_db_url
 from rag.db.db_file_handler import DBFileHandler
 from rag.db.db_model import DbBase
@@ -83,7 +84,7 @@ def ingest_file(file_path: str, embedder_type: str = "mock"):
     logger.info(f"Using {embedder.__class__.__name__}")
 
     # Create DB handler
-    handler = DBFileHandler(embedder=embedder)
+    handler = DBFileHandler(embedder=embedder, chunker=SizeChunker(100, 10))
 
     # Create or get project
     project = handler.get_or_create_project("Demo Project", "Example file ingestion")
