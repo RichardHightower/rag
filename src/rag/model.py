@@ -1,8 +1,14 @@
 """File and Chunk models using Pydantic."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt
+
+AnyValue = Union[str, int, float, List[str], Dict[str, Any]]
+AnyValue1 = Union[str, int, float, List[str], Dict[str, AnyValue]]
+AnyValue2 = Union[str, int, float, List[str], Dict[str, AnyValue1]]
+AnyValue3 = Union[str, int, float, List[str], Dict[str, AnyValue2]]
+MetaDataDict = Dict[str, AnyValue3]
 
 
 class Project(BaseModel):
@@ -42,6 +48,9 @@ class Chunk(BaseModel):
     target_size: PositiveInt
     content: str
     index: NonNegativeInt
+    meta_data: MetaDataDict = {}
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def size(self) -> int:

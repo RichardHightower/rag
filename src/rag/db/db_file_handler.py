@@ -173,6 +173,51 @@ class DBFileHandler(FileHandler):
                 return True
             return False
 
+    def add_chunk(self, file_id: int, chunk: Chunk) -> Optional[Chunk]:
+        """Add a single chunk to the database for a given file.
+
+        Args:
+            file_id: ID of the file this chunk belongs to
+            chunk: Chunk object to be added
+
+        Returns:
+            Chunk: Created chunk object
+            None: If file doesn't exist or an error occurs
+        """
+        with self.session_scope() as session:
+            # Verify file exists
+            file = session.get(FileDB, file_id)
+            if not file:
+                logger.error(f"File with id {file_id} not found")
+                return None
+
+            try:
+                # Generate embedding for the chunk
+                embedding = self.embedder.embed_texts([chunk])[0]
+
+                # Create new chunk record
+                chunk_db = ChunkDB(
+                    file_id=file_id,
+                    content=chunk.content,
+                    embedding=embedding,
+                    chunk_index=chunk.index,
+                    chunk_metadata=chunk.meta_data,
+                )
+                session.add(chunk_db)
+                session.flush()  # Get chunk_db.id
+
+                # Create and return a Chunk object
+                return Chunk(
+                    target_size=chunk.target_size,
+                    content=chunk_db.content,
+                    index=chunk_db.chunk_index,
+                    meta_data=chunk_db.chunk_metadata,
+                )
+
+            except Exception as e:
+                logger.error(f"Error adding chunk to file {file_id}: {str(e)}")
+                return None
+
     def add_file(self, project_id: int, file_model: File) -> Optional[File]:
         """Add a file to a project with version checking.
 
