@@ -538,6 +538,7 @@ class DBFileHandler(FileHandler):
                             target_size=1,
                             content=chunk_row.content,
                             index=chunk_row.chunk_index,
+                            meta_data=chunk_row.chunk_metadata,
                         ),
                     )
                 )
