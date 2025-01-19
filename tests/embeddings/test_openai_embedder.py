@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from rag.config import EMBEDDING_DIM, OPENAI_MODEL
-from rag.db import ChunkDB
-from rag.embeddings.openai_embedder import OpenAIEmbedder
+from vector_rag.config import EMBEDDING_DIM, OPENAI_MODEL
+from vector_rag.db import ChunkDB
+from vector_rag.embeddings.openai_embedder import OpenAIEmbedder
 
 
 def test_init_with_api_key():

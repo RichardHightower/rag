@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from rag.model import Chunk
+from vector_rag.model import Chunk
 
 
 class Embedder(ABC):

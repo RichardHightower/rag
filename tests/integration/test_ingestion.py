@@ -9,10 +9,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from rag.config import get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.embeddings.mock_embedder import MockEmbedder
-from rag.model import File
+from vector_rag.config import get_db_url
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.embeddings.mock_embedder import MockEmbedder
+from vector_rag.model import File
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 import pytest
 
-from rag.chunking import SizeChunker, debug_chunker
-from rag.model import File
+from vector_rag.chunking import SizeChunker, debug_chunker
+from vector_rag.model import File
 
 
 @pytest.fixture

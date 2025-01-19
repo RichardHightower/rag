@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from rag.config import TEST_DB_NAME, get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.embeddings.mock_embedder import MockEmbedder
-from rag.model import File as FileModel
+from vector_rag.config import TEST_DB_NAME, get_db_url
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.embeddings.mock_embedder import MockEmbedder
+from vector_rag.model import File as FileModel
 
 
 @pytest.fixture

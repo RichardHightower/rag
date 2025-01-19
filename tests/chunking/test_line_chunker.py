@@ -2,8 +2,8 @@
 
 import pytest
 
-from rag.chunking import LineChunker
-from rag.model import File
+from vector_rag.chunking import LineChunker
+from vector_rag.model import File
 
 
 @pytest.fixture

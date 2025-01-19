@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from rag.model import ChunkResults, File, Project
+from vector_rag.model import ChunkResults, File, Project
 
 from .db_model import FileDB, ProjectDB
 

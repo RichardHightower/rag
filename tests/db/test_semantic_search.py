@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 from sqlalchemy import text
 
-from rag.chunking import LineChunker
-from rag.config import EMBEDDING_DIM, TEST_DB_NAME, get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.db.dimension_utils import ensure_vector_dimension
-from rag.embeddings import MockEmbedder
-from rag.model import File
+from vector_rag.chunking import LineChunker
+from vector_rag.config import EMBEDDING_DIM, TEST_DB_NAME, get_db_url
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.db.dimension_utils import ensure_vector_dimension
+from vector_rag.embeddings import MockEmbedder
+from vector_rag.model import File
 
 
 @pytest.fixture

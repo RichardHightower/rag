@@ -9,7 +9,7 @@ import numpy as np
 from sqlalchemy import Float, create_engine, func, literal, select
 from sqlalchemy.orm import sessionmaker
 
-from rag.model import Chunk, ChunkResult, ChunkResults, File, Project
+from vector_rag.model import Chunk, ChunkResult, ChunkResults, File, Project
 
 from ..chunking import LineChunker
 from ..chunking.base_chunker import Chunker

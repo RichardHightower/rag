@@ -3,8 +3,8 @@
 import pytest
 from sqlalchemy import text
 
-from rag.config import TEST_DB_NAME, get_db_url
-from rag.db.dimension_utils import ensure_vector_dimension
+from vector_rag.config import TEST_DB_NAME, get_db_url
+from vector_rag.db.dimension_utils import ensure_vector_dimension
 
 
 def test_ensure_vector_dimension_same(test_db):

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
-from rag.config import DB_URL, VECTOR_INDEX_LISTS
+from vector_rag.config import DB_URL, VECTOR_INDEX_LISTS
 
 # Configure logging
 logging.basicConfig(

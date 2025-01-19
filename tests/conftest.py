@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
-from rag.config import get_db_url
-from rag.embeddings import MockEmbedder
+from vector_rag.config import get_db_url
+from vector_rag.embeddings import MockEmbedder
 
 
 def create_database():
@@ -92,7 +92,7 @@ def test_db():
         conn.execute(text("commit"))
 
         # Import and create tables
-        from rag.db.db_model import DbBase
+        from vector_rag.db.db_model import DbBase
 
         DbBase.metadata.create_all(test_engine)
         conn.execute(text("commit"))

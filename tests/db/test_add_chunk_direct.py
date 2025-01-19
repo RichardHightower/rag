@@ -1,9 +1,9 @@
 import pytest
 
-from rag.config import get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.embeddings import MockEmbedder
-from rag.model import Chunk, File
+from vector_rag.config import get_db_url
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.embeddings import MockEmbedder
+from vector_rag.model import Chunk, File
 
 
 @pytest.fixture

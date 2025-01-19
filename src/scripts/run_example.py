@@ -9,13 +9,13 @@ from pathlib import Path
 
 from sqlalchemy import create_engine
 
-from rag.chunking import SizeChunker
-from rag.config import OPENAI_API_KEY, get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.db.db_model import DbBase
-from rag.embeddings.mock_embedder import MockEmbedder
-from rag.embeddings.openai_embedder import OpenAIEmbedder
-from rag.model import File as FileModel
+from vector_rag.chunking import SizeChunker
+from vector_rag.config import OPENAI_API_KEY, get_db_url
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.db.db_model import DbBase
+from vector_rag.embeddings.mock_embedder import MockEmbedder
+from vector_rag.embeddings.openai_embedder import OpenAIEmbedder
+from vector_rag.model import File as FileModel
 
 # Configure logging
 logging.basicConfig(
