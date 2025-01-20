@@ -13,7 +13,7 @@ from vector_rag.model import Chunk, ChunkResult, ChunkResults, File, Project
 
 from ..chunking import LineChunker
 from ..chunking.base_chunker import Chunker
-from ..config import DB_URL
+from ..config import Config
 from ..embeddings import Embedder, OpenAIEmbedder
 from .base_file_handler import FileHandler
 from .db_model import ChunkDB, DbBase, FileDB, ProjectDB
@@ -27,7 +27,7 @@ class DBFileHandler(FileHandler):
 
     def __init__(
         self,
-        db_url: str = DB_URL,
+        config: Config = Config(),
         embedder: Optional[Embedder] = None,
         chunker: Optional[Chunker] = None,
     ):
@@ -40,16 +40,16 @@ class DBFileHandler(FileHandler):
         Raises:
             ValueError: If db_url is None
         """
-        if db_url is None:
+        if config.DB_URL is None:
             raise ValueError("Database URL must be provided")
 
-        self.engine = create_engine(db_url)
-        self.embedder = embedder or OpenAIEmbedder()
+        self.engine = create_engine(config.DB_URL)
+        self.embedder = embedder or OpenAIEmbedder(config)
         self.Session = sessionmaker(bind=self.engine)
         self.chunker: Chunker
 
         if not chunker:
-            self.chunker = LineChunker()
+            self.chunker = LineChunker(config)
         else:
             self.chunker = chunker
 
@@ -549,3 +549,13 @@ class DBFileHandler(FileHandler):
                 page=page,
                 page_size=page_size,
             )
+
+    @classmethod
+    def create(
+        cls,
+        db_name: Optional[str] = None,
+        embedder: Optional[Embedder] = None,
+        chunker: Optional[Chunker] = None,
+    ):
+        config = Config(DB_NAME=db_name)
+        return DBFileHandler(config, embedder, chunker)

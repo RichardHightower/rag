@@ -3,14 +3,7 @@
 import os
 from typing import List, Optional
 
-from ..config import EMBEDDING_DIM, OPENAI_API_KEY, OPENAI_MODEL
-
-# Set OpenAI API key in environment before importing openai
-if OPENAI_API_KEY:
-    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-
-import openai
-
+from ..config import Config
 from ..model import Chunk
 from .base import Embedder
 
@@ -20,26 +13,28 @@ class OpenAIEmbedder(Embedder):
 
     def __init__(
         self,
-        model_name: str = OPENAI_MODEL,
-        dimension: int = EMBEDDING_DIM,
-        api_key: Optional[str] = OPENAI_API_KEY,
+        config: Optional[Config] = None,
         batch_size: int = 16,
     ):
         """Initialize OpenAI embedder.
 
         Args:
-            model_name: Name of the OpenAI model to use
-            dimension: Dimension of the embeddings
-            api_key: OpenAI API key
-            batch_size: Number of texts to embed in one batch
+           config: Configuration
 
         Raises:
-            ValueError: If no API key is provided
+            ValueError: If no API key is provided or if config is None
         """
-        super().__init__(model_name, dimension)
-        if not api_key:
+        if config is None:
+            config = Config()
+
+        super().__init__(config.OPENAI_TEXT_EMBED_MODEL, config.EMBEDDING_DIM)
+        os.environ["OPENAI_API_KEY"] = config.OPENAI_API_KEY
+
+        if not config.OPENAI_API_KEY:
             raise ValueError("OpenAI API key must be provided")
-        self.client = openai.OpenAI(api_key=api_key)
+        import openai
+
+        self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
         self.batch_size = batch_size
 
     def get_dimension(self) -> int:
@@ -70,3 +65,18 @@ class OpenAIEmbedder(Embedder):
             batch_embeddings = [e.embedding for e in response.data]
             embeddings.extend(batch_embeddings)
         return embeddings
+
+    @classmethod
+    def create(
+        cls,
+        api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+        dimension: Optional[int] = None,
+        batch_size=16,
+    ):
+        config = Config(
+            OPENAI_API_KEY=api_key,
+            OPENAI_TEXT_EMBED_MODEL=model_name,
+            EMBEDDING_DIM=dimension,
+        )
+        return OpenAIEmbedder(config, batch_size=batch_size)

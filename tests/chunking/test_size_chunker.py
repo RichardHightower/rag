@@ -18,24 +18,24 @@ def sample_file():
 
 
 def test_size_chunker_init():
-    chunker = SizeChunker(chunk_size=50, overlap=10)
+    chunker = SizeChunker.create(chunk_size=50, overlap=10)
     assert chunker.chunk_size == 50
     assert chunker.overlap == 10
 
 
 def test_size_chunker_invalid_init():
     with pytest.raises(ValueError, match="chunk_size must be positive"):
-        SizeChunker(chunk_size=0)
+        SizeChunker.create(chunk_size=0)
 
     with pytest.raises(ValueError, match="overlap must be non-negative"):
-        SizeChunker(chunk_size=50, overlap=-1)
+        SizeChunker.create(chunk_size=50, overlap=-1)
 
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
-        SizeChunker(chunk_size=50, overlap=50)
+        SizeChunker.create(chunk_size=50, overlap=50)
 
 
 def test_size_chunker_chunk_text(sample_file):
-    chunker = SizeChunker(chunk_size=50, overlap=10)
+    chunker = SizeChunker.create(chunk_size=50, overlap=10)
 
     print("\nDebug output:")
     debug_chunker(chunker, sample_file)
@@ -58,7 +58,7 @@ def test_size_chunker_small_content():
         content="Short text",
         meta_data={},
     )
-    chunker = SizeChunker(chunk_size=50, overlap=10)
+    chunker = SizeChunker.create(chunk_size=50, overlap=10)
     chunks = chunker.chunk_text(small_file)
 
     assert len(chunks) == 1
@@ -73,7 +73,7 @@ def test_size_chunker_empty_content():
         content="",
         meta_data={},
     )
-    chunker = SizeChunker(chunk_size=50, overlap=10)
+    chunker = SizeChunker.create(chunk_size=50, overlap=10)
     chunks = chunker.chunk_text(empty_file)
 
     assert len(chunks) == 0

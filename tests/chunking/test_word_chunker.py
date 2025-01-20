@@ -20,7 +20,7 @@ def sample_file():
 
 def test_custom_chunk_size(sample_file):
     """Test chunking with custom chunk size."""
-    chunker = WordChunker(chunk_size=10, overlap=2)
+    chunker = WordChunker.create(chunk_size=10, overlap=2)
 
     print("\nDebug output:")
     debug_chunker(chunker, sample_file)
@@ -46,7 +46,7 @@ def test_custom_chunk_size(sample_file):
 
 def test_overlap(sample_file):
     """Test chunking with overlap."""
-    chunker = WordChunker(chunk_size=20, overlap=5)
+    chunker = WordChunker.create(chunk_size=20, overlap=5)
 
     print("\nDebug output:")
     debug_chunker(chunker, sample_file)
@@ -67,7 +67,7 @@ def test_small_content(sample_file):
     """Test chunking with content smaller than chunk size."""
     small_content = "Short text."
     small_file = File(**{**sample_file.__dict__, "content": small_content})
-    chunker = WordChunker(chunk_size=20, overlap=2)
+    chunker = WordChunker.create(chunk_size=20, overlap=2)
 
     print("\nDebug output:")
     debug_chunker(chunker, small_file)

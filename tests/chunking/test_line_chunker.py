@@ -3,13 +3,14 @@
 import pytest
 
 from vector_rag.chunking import LineChunker
+from vector_rag.config import Config
 from vector_rag.model import File
 
 
 @pytest.fixture
 def chunker():
     """Create a line chunker instance."""
-    return LineChunker()
+    return LineChunker(Config())
 
 
 @pytest.fixture
@@ -36,7 +37,7 @@ def test_basic_chunking(chunker, sample_file):
 def test_custom_chunk_size(chunker, sample_file):
     """Test chunking with custom chunk size."""
     # Set chunk_size to 4 lines, overlap to 1
-    chunker = LineChunker(chunk_size=4, overlap=1)
+    chunker = LineChunker.create(chunk_size=4, overlap=1)
     chunks = chunker.chunk_text(sample_file)
 
     assert len(chunks) == 3
@@ -104,7 +105,7 @@ def test_text_smaller_than_chunk(chunker):
         content="\n".join([f"Line {i}" for i in range(5)]),
         meta_data={},
     )
-    chunker = LineChunker(chunk_size=10, overlap=5)
+    chunker = LineChunker.create(chunk_size=10, overlap=5)
     chunks = chunker.chunk_text(small_file)
     assert len(chunks) == 1
     assert chunks[0].content == small_file.content
@@ -119,7 +120,7 @@ def test_no_overlap(chunker):
         content="\n".join([f"Line {i}" for i in range(6)]),
         meta_data={},
     )
-    chunker = LineChunker(chunk_size=2, overlap=0)
+    chunker = LineChunker.create(chunk_size=2, overlap=0)
     chunks = chunker.chunk_text(file)
 
     assert len(chunks) == 3
@@ -131,24 +132,24 @@ def test_no_overlap(chunker):
 def test_invalid_chunk_size(chunker, sample_file):
     """Test invalid chunk size."""
     with pytest.raises(ValueError, match="chunk_size must be positive"):
-        chunker = LineChunker(chunk_size=0)
+        chunker = LineChunker.create(chunk_size=0)
         chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="chunk_size must be positive"):
-        chunker = LineChunker(chunk_size=-1)
+        chunker = LineChunker.create(chunk_size=-1)
         chunker.chunk_text(sample_file)
 
 
 def test_invalid_overlap(chunker, sample_file):
     """Test invalid overlap size."""
     with pytest.raises(ValueError, match="overlap must be non-negative"):
-        chunker = LineChunker(chunk_size=2, overlap=-1)
+        chunker = LineChunker.create(chunk_size=2, overlap=-1)
         chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
-        chunker = LineChunker(chunk_size=2, overlap=2)
+        chunker = LineChunker.create(chunk_size=2, overlap=2)
         chunker.chunk_text(sample_file)
 
     with pytest.raises(ValueError, match="overlap must be less than chunk_size"):
-        chunker = LineChunker(chunk_size=2, overlap=3)
+        chunker = LineChunker.create(chunk_size=2, overlap=3)
         chunker.chunk_text(sample_file)

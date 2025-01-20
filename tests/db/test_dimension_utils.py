@@ -3,7 +3,6 @@
 import pytest
 from sqlalchemy import text
 
-from vector_rag.config import TEST_DB_NAME, get_db_url
 from vector_rag.db.dimension_utils import ensure_vector_dimension
 
 

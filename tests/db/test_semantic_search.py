@@ -5,11 +5,16 @@ import pytest
 from sqlalchemy import text
 
 from vector_rag.chunking import LineChunker
-from vector_rag.config import EMBEDDING_DIM, TEST_DB_NAME, get_db_url
+from vector_rag.config import Config
 from vector_rag.db.db_file_handler import DBFileHandler
 from vector_rag.db.dimension_utils import ensure_vector_dimension
 from vector_rag.embeddings import MockEmbedder
 from vector_rag.model import File
+
+config = Config()
+EMBEDDING_DIM = config.EMBEDDING_DIM
+TEST_DB_NAME = config.TEST_DB_NAME
+TEST_DB_URL = config.TEST_DB_URL
 
 
 @pytest.fixture
@@ -50,8 +55,8 @@ def populated_handler(test_db, mock_embedder, test_files):
     # Ensure vector dimensions match
     ensure_vector_dimension(test_db, EMBEDDING_DIM)
 
-    handler = DBFileHandler(
-        get_db_url(TEST_DB_NAME), mock_embedder, chunker=LineChunker(5, 0)
+    handler = DBFileHandler.create(
+        TEST_DB_NAME, mock_embedder, chunker=LineChunker.create(5, 0)
     )
     project = handler.create_project("Test Project")
 

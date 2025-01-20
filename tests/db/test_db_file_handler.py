@@ -8,10 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from vector_rag.config import TEST_DB_NAME, get_db_url
+from vector_rag.config import Config
 from vector_rag.db.db_file_handler import DBFileHandler
 from vector_rag.embeddings.mock_embedder import MockEmbedder
 from vector_rag.model import File as FileModel
+
+config = Config()
+TEST_DB_NAME = config.TEST_DB_NAME
 
 
 @pytest.fixture
@@ -33,7 +36,7 @@ def create_test_file(content="Test content", name="test.txt", path="/path/to/tes
 
 def test_add_duplicate_file_same_crc(test_db):
     """Test adding the same file twice with same CRC."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    handler = DBFileHandler.create(TEST_DB_NAME, MockEmbedder())
     project = handler.create_project("Test Project")
 
     # Create and add file first time
@@ -57,7 +60,7 @@ def test_add_duplicate_file_same_crc(test_db):
 
 def test_add_duplicate_file_different_project(test_db):
     """Test adding same file to different projects."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    handler = DBFileHandler.create(TEST_DB_NAME, MockEmbedder())
 
     # Create two projects
     project1 = handler.create_project("Project 1")
@@ -91,7 +94,7 @@ def test_add_duplicate_file_different_project(test_db):
 
 def test_add_duplicate_file_different_crc(test_db):
     """Test adding same file with different content (different CRC)."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    handler = DBFileHandler.create(TEST_DB_NAME, MockEmbedder())
     project = handler.create_project("Test Project")
 
     # Add original file
@@ -132,7 +135,7 @@ def test_add_duplicate_file_different_crc(test_db):
 
 def test_file_versioning_workflow(test_db):
     """Integration test for complete file versioning workflow."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), MockEmbedder())
+    handler = DBFileHandler.create(TEST_DB_NAME, MockEmbedder())
     project = handler.create_project("Test Project")
 
     # Initial version
@@ -178,7 +181,7 @@ def test_file_versioning_workflow(test_db):
 
 def test_create_project(test_db):
     """Test creating a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     project = handler.create_project("Test Project", "Test Description")
 
@@ -197,7 +200,7 @@ def test_create_project(test_db):
 
 def test_get_project(test_db):
     """Test retrieving a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     # Create a project
     created = handler.create_project("Test Project", "Test Description")
@@ -215,7 +218,7 @@ def test_get_project(test_db):
 
 def test_delete_project(test_db):
     """Test deleting a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     # Create project
     project = handler.create_project("Test Project")
@@ -235,13 +238,13 @@ def test_delete_project(test_db):
 
 def test_delete_nonexistent_project(test_db):
     """Test deleting a project that doesn't exist."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
     assert handler.delete_project(999) is False
 
 
 def test_add_file(test_db, embedder):
     """Test adding a file to a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create project
     project = handler.create_project("Test Project")
@@ -277,7 +280,7 @@ def test_add_file(test_db, embedder):
 
 def test_add_file_to_nonexistent_project(test_db, embedder):
     """Test adding a file to a non-existent project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
     file_model = create_test_file()
 
     # Try to add file to non-existent project
@@ -287,7 +290,7 @@ def test_add_file_to_nonexistent_project(test_db, embedder):
 
 def test_remove_file(test_db, embedder):
     """Test removing a file from a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create project and add file
     project = handler.create_project("Test Project")
@@ -311,7 +314,7 @@ def test_remove_file(test_db, embedder):
 
 def test_remove_nonexistent_file(test_db, embedder):
     """Test removing a non-existent file."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create project
     project = handler.create_project("Test Project")
@@ -322,7 +325,7 @@ def test_remove_nonexistent_file(test_db, embedder):
 
 def test_remove_file_wrong_project(test_db, embedder):
     """Test removing a file from the wrong project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create two projects
     project1 = handler.create_project("Project 1")
@@ -345,7 +348,7 @@ def test_remove_file_wrong_project(test_db, embedder):
 
 def test_delete_file_success(test_db, embedder):
     """Test successful deletion of a file and its chunks."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     # Create a project and add a file
     project = handler.create_project("Test Project")
@@ -384,14 +387,14 @@ def test_delete_file_success(test_db, embedder):
 
 def test_delete_nonexistent_file(test_db):
     """Test attempting to delete a non-existent file."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
     result = handler.delete_file(999999)  # Non-existent ID
     assert result is False
 
 
 def test_get_file(test_db, embedder):
     """Test getting a file by project ID, path and name."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create a project and add a file
     project = handler.create_project("Test Project")
@@ -441,7 +444,7 @@ def teardown_module(module):
 
 def test_get_projects(test_db):
     """Test getting project listings."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     # Create some test projects
     project_names = ["Project A", "Project B", "Project C"]
@@ -477,7 +480,7 @@ def test_get_projects(test_db):
 
 def test_get_projects_empty(test_db):
     """Test getting project listings when there are no projects."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME))
+    handler = DBFileHandler.create(TEST_DB_NAME)
 
     projects = handler.get_projects()
     assert len(projects) == 0
@@ -489,7 +492,7 @@ def test_get_projects_empty(test_db):
 
 def test_list_files(test_db, embedder):
     """Test listing files in a project."""
-    handler = DBFileHandler(get_db_url(TEST_DB_NAME), embedder)
+    handler = DBFileHandler.create(TEST_DB_NAME, embedder)
 
     # Create a project
     project = handler.create_project("Test Project")
