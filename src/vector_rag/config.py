@@ -27,6 +27,7 @@ class Config:
         CHUNK_SIZE: Optional[int] = None,
         CHUNK_OVERLAP: Optional[int] = None,
         EMBEDDING_DIM: Optional[int] = None,
+        VECTOR_INDEX_LISTS: Optional[list] = None,
         **kwargs,
     ):
         """Initialize configuration with optional overrides.
@@ -49,6 +50,7 @@ class Config:
             "OPENAI_TEXT_EMBED_MODEL": OPENAI_TEXT_EMBED_MODEL,
             "LOG_LEVEL": LOG_LEVEL,
             "LOG_LEVEL_CONSOLE": LOG_LEVEL_CONSOLE,
+            "VECTOR_INDEX_LISTS": VECTOR_INDEX_LISTS,
             "LOG_DIR": LOG_DIR,
             "CHUNK_SIZE": CHUNK_SIZE,
             "CHUNK_OVERLAP": CHUNK_OVERLAP,
@@ -80,7 +82,7 @@ class Config:
 
         # Vector dimensions and search configuration
         self.EMBEDDING_DIM = int(self.get_or_default("EMBEDDING_DIM", "1536"))
-        self.VECTOR_INDEX_LISTS = int(self.get_or_default("VECTOR_INDEX_LISTS", "100"))
+        self.VECTOR_INDEX_LISTS = self.get_or_default("VECTOR_INDEX_LISTS", [100])
         self.VECTOR_INDEX_PROBES = int(self.get_or_default("VECTOR_INDEX_PROBES", "10"))
         self.DEFAULT_SIMILARITY_THRESHOLD = float(
             self.get_or_default("DEFAULT_SIMILARITY_THRESHOLD", "0.7")

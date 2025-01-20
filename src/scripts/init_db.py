@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 
 from vector_rag.config import Config
 
-config = Config
+config = Config()
 DB_URL = config.DB_URL
 VECTOR_INDEX_LISTS = config.VECTOR_INDEX_LISTS
 
