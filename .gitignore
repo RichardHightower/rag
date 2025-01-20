@@ -121,5 +121,5 @@ celerybeat.pid
 *.tmp
 
 .pmarkdownc/
-project-structure.md
+project_structure.md
 ./.task

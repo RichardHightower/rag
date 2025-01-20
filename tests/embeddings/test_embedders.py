@@ -2,7 +2,7 @@
 
 import pytest
 
-from rag.embeddings import MockEmbedder
+from vector_rag.embeddings import MockEmbedder
 
 
 def test_mock_embedder():

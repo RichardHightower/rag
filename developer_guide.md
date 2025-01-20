@@ -16,7 +16,7 @@ This guide provides detailed information for developers working on the RAG proje
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd rag
+cd vector_rag
 ```
 
 2. Set up development environment:

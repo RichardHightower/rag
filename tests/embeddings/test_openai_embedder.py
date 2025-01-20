@@ -5,14 +5,18 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from rag.config import EMBEDDING_DIM, OPENAI_MODEL
-from rag.db import ChunkDB
-from rag.embeddings.openai_embedder import OpenAIEmbedder
+from vector_rag.config import Config
+from vector_rag.db import ChunkDB
+from vector_rag.embeddings.openai_embedder import OpenAIEmbedder
+
+config = Config()
+EMBEDDING_DIM = config.EMBEDDING_DIM
+OPENAI_MODEL = config.OPENAI_TEXT_EMBED_MODEL
 
 
 def test_init_with_api_key():
     """Test initialization with API key."""
-    embedder = OpenAIEmbedder(api_key="test_key")
+    embedder = OpenAIEmbedder.create(api_key="test_key")
     assert embedder.model_name == OPENAI_MODEL
     assert embedder.dimension == EMBEDDING_DIM
     assert embedder.batch_size == 16
@@ -21,12 +25,12 @@ def test_init_with_api_key():
 def test_init_without_api_key():
     """Test initialization without API key."""
     with pytest.raises(ValueError, match="OpenAI API key must be provided"):
-        OpenAIEmbedder(api_key="")
+        OpenAIEmbedder.create(api_key="")
 
 
 def test_init_with_custom_params():
     """Test initialization with custom parameters."""
-    embedder = OpenAIEmbedder(
+    embedder = OpenAIEmbedder.create(
         model_name="custom-model", dimension=128, api_key="test_key", batch_size=32
     )
     assert embedder.model_name == "custom-model"
@@ -36,7 +40,7 @@ def test_init_with_custom_params():
 
 def test_get_dimension():
     """Test get_dimension method."""
-    embedder = OpenAIEmbedder(api_key="test_key", dimension=256)
+    embedder = OpenAIEmbedder.create(api_key="test_key", dimension=256)
     assert embedder.get_dimension() == 256
 
 
@@ -53,7 +57,7 @@ def test_embed_texts_single_batch(mock_openai):
     mock_client.embeddings.create.return_value = mock_response
     mock_openai.return_value = mock_client
 
-    embedder = OpenAIEmbedder(api_key="test_key", dimension=3, batch_size=5)
+    embedder = OpenAIEmbedder.create(api_key="test_key", dimension=3, batch_size=5)
     texts = ["Hello", "World"]
     chunks = [ChunkDB(content=text) for text in texts]
     embeddings = embedder.embed_texts(chunks)
@@ -82,7 +86,7 @@ def test_embed_texts_multiple_batches(mock_openai):
     mock_client.embeddings.create.side_effect = [mock_response1, mock_response2]
     mock_openai.return_value = mock_client
 
-    embedder = OpenAIEmbedder(api_key="test_key", dimension=2, batch_size=2)
+    embedder = OpenAIEmbedder.create(api_key="test_key", dimension=2, batch_size=2)
     texts = ["Text1", "Text2", "Text3"]
     embeddings = embedder.embed_texts([ChunkDB(content=text) for text in texts])
 

@@ -1,15 +1,18 @@
 import pytest
 
-from rag.config import get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.embeddings import MockEmbedder
-from rag.model import Chunk, File
+from vector_rag.config import Config
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.embeddings import MockEmbedder
+from vector_rag.model import Chunk, File
+
+config = Config()
+TEST_DB_NAME = config.TEST_DB_NAME
 
 
 @pytest.fixture
 def db_handler(test_db):
     """Create a DBFileHandler with test database."""
-    return DBFileHandler(get_db_url("vectordb_test"), embedder=MockEmbedder())
+    return DBFileHandler.create(TEST_DB_NAME, embedder=MockEmbedder())
 
 
 def test_add_chunk(db_handler):

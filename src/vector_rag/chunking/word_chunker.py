@@ -1,53 +1,49 @@
-from typing import List
+from typing import List, Optional
 
-from ..config import CHUNK_OVERLAP, CHUNK_SIZE
+from ..config import Config
 from ..model import Chunk, File
 from .base_chunker import Chunker
 
 
-class LineChunker(Chunker):
-    """Chunker that splits text based on lines."""
+class WordChunker(Chunker):
+    """Chunker that splits text based on words."""
 
-    def __init__(self, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-        self.chunk_size = chunk_size
-        self.overlap = overlap
+    def __init__(self, config: Config = Config()):
+        self.chunk_size = config.CHUNK_SIZE
+        self.overlap = config.CHUNK_OVERLAP
         # Validate inputs
-        if chunk_size <= 0:
+        if self.chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
-        if overlap < 0:
+        if self.overlap < 0:
             raise ValueError("overlap must be non-negative")
-        if overlap >= chunk_size:
+        if self.overlap >= self.chunk_size:
             raise ValueError("overlap must be less than chunk_size")
 
     def chunk_text(self, file: File) -> List[Chunk]:
-        """Split text into overlapping chunks.
+        """Split text into overlapping chunks based on words.
 
         Args:
             file: File to split
 
-
         Returns:
             List[Chunk]: List of text chunks
         """
-
-        # Split text into lines
         if file.content is None:
             return []
 
-        lines = file.content.splitlines()
-        if not lines and file.content:
+        words = file.content.split()
+        if not words:
             return [Chunk(target_size=self.chunk_size, content=file.content, index=0)]
 
         chunks = []
         start = 0
         chunk_index = 0
 
-        while start < len(lines):
-            # Calculate end of current chunk
-            end = min(start + self.chunk_size, len(lines))
+        while start < len(words):
+            end = min(start + self.chunk_size, len(words))
 
-            # Join lines for this chunk
-            chunk_content = "\n".join(lines[start:end])
+            # Join words for this chunk
+            chunk_content = " ".join(words[start:end])
             chunks.append(
                 Chunk(
                     target_size=self.chunk_size,
@@ -57,7 +53,7 @@ class LineChunker(Chunker):
             )
 
             # If we've reached the end, break
-            if end == len(lines):
+            if end == len(words):
                 break
 
             # Move start position, accounting for overlap
@@ -65,3 +61,8 @@ class LineChunker(Chunker):
             chunk_index += 1
 
         return chunks
+
+    @classmethod
+    def create(cls, chunk_size: Optional[int] = None, overlap: Optional[int] = None):
+        config = Config(CHUNK_SIZE=chunk_size, CHUNK_OVERLAP=overlap)
+        return WordChunker(config)

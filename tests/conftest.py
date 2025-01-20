@@ -4,14 +4,15 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
-from rag.config import get_db_url
-from rag.embeddings import MockEmbedder
+from vector_rag.config import Config
+from vector_rag.embeddings import MockEmbedder
 
 
 def create_database():
     """Create a test database if it doesn't exist."""
-    template_db_url = get_db_url("postgres")
-    test_db_url = get_db_url("vectordb_test")
+    config = Config()
+    template_db_url = config.DB_URL
+    test_db_url = config.TEST_DB_URL
 
     engine = create_engine(template_db_url)
     try:
@@ -54,13 +55,12 @@ def mock_embedder():
 
 @pytest.fixture(scope="function")
 def test_db():
+    config = Config()
     """Create a test database."""
     # Connect to default postgres database to create/drop test database
-    default_engine = create_engine(
-        f"postgresql://postgres:postgres@localhost:5433/postgres"
-    )
+    default_engine = create_engine(config.DB_URL)
 
-    test_db_name = "vectordb_test"
+    test_db_name = config.TEST_DB_NAME
 
     # Drop test database if it exists and create it fresh
     with default_engine.connect() as conn:
@@ -84,7 +84,7 @@ def test_db():
         conn.execute(text("commit"))
 
     # Create engine for test database
-    test_engine = create_engine(get_db_url(test_db_name))
+    test_engine = create_engine(config.TEST_DB_URL)
 
     # Create vector extension and tables
     with test_engine.connect() as conn:
@@ -92,7 +92,7 @@ def test_db():
         conn.execute(text("commit"))
 
         # Import and create tables
-        from rag.db.db_model import DbBase
+        from vector_rag.db.db_model import DbBase
 
         DbBase.metadata.create_all(test_engine)
         conn.execute(text("commit"))

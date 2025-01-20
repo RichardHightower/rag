@@ -1,18 +1,17 @@
 """Integration test for file ingestion."""
 
-import os
-import tempfile
 import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 
-from rag.config import get_db_url
-from rag.db.db_file_handler import DBFileHandler
-from rag.embeddings.mock_embedder import MockEmbedder
-from rag.model import File
+from vector_rag.config import Config
+from vector_rag.db.db_file_handler import DBFileHandler
+from vector_rag.embeddings.mock_embedder import MockEmbedder
+from vector_rag.model import File
+
+config = Config()
+DB_URL = config.DB_URL
 
 
 @pytest.fixture
@@ -33,7 +32,7 @@ def unique_name():
 def test_file_ingestion(test_db, sample_file, unique_name):
     """Test complete file ingestion flow."""
     # Create handler with mock embedder
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
+    handler = DBFileHandler(config, MockEmbedder())
 
     # Create project
     project = handler.create_project(unique_name)
@@ -59,7 +58,7 @@ def test_file_ingestion(test_db, sample_file, unique_name):
 
 def test_project_uniqueness(test_db, unique_name):
     """Test project name uniqueness constraints."""
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
+    handler = DBFileHandler(config, MockEmbedder())
 
     # Create initial project
     project1 = handler.create_project(unique_name)
@@ -87,7 +86,7 @@ def test_project_uniqueness(test_db, unique_name):
 
 def test_multiple_projects(test_db):
     """Test creating multiple projects with different names."""
-    handler = DBFileHandler(get_db_url(), MockEmbedder())
+    handler = DBFileHandler(config, MockEmbedder())
 
     # Create multiple projects
     names = [f"Project {i}" for i in range(3)]

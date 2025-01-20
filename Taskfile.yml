@@ -89,7 +89,7 @@ tasks:
   test:coverage:
     desc: "Run Python tests with coverage report"
     cmds:
-      - pytest tests/ --cov=src/rag --cov-report=term-missing
+      - pytest tests/ --cov=src/vector_rag --cov-report=term-missing
       - echo "✅ Coverage report generated"
 
   format:

@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from ..config import CHUNK_OVERLAP, CHUNK_SIZE
+from ..config import Config
 from ..model import Chunk, File
 from .base_chunker import Chunker
 
@@ -8,16 +8,15 @@ from .base_chunker import Chunker
 class SizeChunker(Chunker):
     """Chunker that splits text based on character size."""
 
-    def __init__(self, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-        self.chunk_size = chunk_size
-        self.overlap = overlap
-
+    def __init__(self, config: Config = Config()):
+        self.chunk_size = config.CHUNK_SIZE
+        self.overlap = config.CHUNK_OVERLAP
         # Validate inputs
-        if chunk_size <= 0:
+        if self.chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
-        if overlap < 0:
+        if self.overlap < 0:
             raise ValueError("overlap must be non-negative")
-        if overlap >= chunk_size:
+        if self.overlap >= self.chunk_size:
             raise ValueError("overlap must be less than chunk_size")
 
     def chunk_text(self, file: File) -> List[Chunk]:
@@ -78,3 +77,8 @@ class SizeChunker(Chunker):
             #     break
 
         return chunks
+
+    @classmethod
+    def create(cls, chunk_size: Optional[int] = None, overlap: Optional[int] = None):
+        config = Config(CHUNK_SIZE=chunk_size, CHUNK_OVERLAP=overlap)
+        return SizeChunker(config)
